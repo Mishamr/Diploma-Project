@@ -1,0 +1,16 @@
+Django>=5.0
+djangorestframework
+celery
+redis
+psycopg[binary]
+selenium>=4.10.0
+webdriver-manager
+python-decouple
+django-cors-headers
+pytest
+pytest-django
+pytest-cov
+beautifulsoup4
+gunicorn
+requests
+djangorestframework-simplejwt
