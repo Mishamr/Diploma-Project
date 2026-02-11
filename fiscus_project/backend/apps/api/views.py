@@ -89,9 +89,10 @@ class StoreViewSet(viewsets.ReadOnlyModelViewSet):
         earth_radius_km = 6371
 
         for store in self.get_queryset():
-            if not store.latitude or not store.longitude:
+            # Перевірка на None, щоб math.radians не "впав"
+            if store.latitude is None or store.longitude is None:
                 continue
-
+            
             # Haversine formula
             d_lat = math.radians(store.latitude - user_lat)
             d_lon = math.radians(store.longitude - user_lon)
