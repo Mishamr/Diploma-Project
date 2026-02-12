@@ -1,4 +1,4 @@
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions, serializers, status
 from rest_framework.response import Response
 from django.contrib.auth.models import User
 from rest_framework.serializers import ModelSerializer
@@ -36,7 +36,7 @@ class UserProfileSerializer(ModelSerializer):
     """
     Serializer for User Profile.
     """
-    is_premium = ModelSerializer.SerializerMethodField()
+    is_premium = serializers.SerializerMethodField()
 
     class Meta:
         model = User

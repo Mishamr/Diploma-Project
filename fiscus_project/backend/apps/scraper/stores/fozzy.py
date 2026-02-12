@@ -5,7 +5,7 @@ Fozzy scraper (fozzyshop.ua).
 import logging
 from typing import Dict, List
 
-from apps.scraper.stores.base import BaseScraper, register_scraper, clean_price
+from .base import BaseScraper, register_scraper, clean_price
 
 logger = logging.getLogger("fiscus.scrapers.fozzy")
 

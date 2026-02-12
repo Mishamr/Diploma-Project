@@ -17,7 +17,7 @@ import logging
 from typing import List
 from urllib.parse import urlparse
 
-from apps.scraper.stores.base import BaseScraper, get_registry
+from .base import BaseScraper, get_registry
 
 logger = logging.getLogger("fiscus.scrapers.factory")
 

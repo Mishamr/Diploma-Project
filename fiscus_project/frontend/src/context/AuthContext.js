@@ -12,7 +12,7 @@
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { Alert, Platform } from 'react-native';
-import { loginUser, registerUser, getUserProfile } from '../api/client';
+import apiClient, { loginUser, registerUser, getUserProfile } from '../api/client';
 
 /**
  * Platform-aware storage utilities.
@@ -236,18 +236,10 @@ export const AuthProvider = ({ children }) => {
                 return false;
             }
 
-            // Call refresh endpoint
-            const response = await fetch('http://localhost:8000/api/v1/token/refresh/', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ refresh: storedRefreshToken }),
+            // Use apiClient for platform-aware URL (Android needs 10.0.2.2)
+            const { data } = await apiClient.post('/token/refresh/', {
+                refresh: storedRefreshToken,
             });
-
-            if (!response.ok) {
-                throw new Error('Token refresh failed');
-            }
-
-            const data = await response.json();
 
             // Store new access token
             await storage.setItem('access_token', data.access);
