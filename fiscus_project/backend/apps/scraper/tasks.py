@@ -17,46 +17,46 @@ from celery.exceptions import SoftTimeLimitExceeded
 from django.db import transaction
 
 from apps.core.models import StoreItem
-from apps.scraper.engine import ATBScraper, SilpoScraper
+from apps.scraper.stores import ScraperFactory
 
 logger = logging.getLogger(__name__)
 
-# Scraper configuration
-SCRAPER_MAP = {
-    "atb": ATBScraper,
-    "silpo": SilpoScraper,
-}
+# Single factory instance — reads auto-discovered registry
+_factory = ScraperFactory()
 
 
 def _get_scraper_for_store_item(item: StoreItem):
     """
-    Select appropriate scraper based on store URL or name.
-    
-    Routing logic:
-        - ATB: matches "atbmarket" in URL or "atb" in name
-        - Silpo: matches "silpo" in URL or "сільпо" in name
-        - Default: ATB scraper
-    
+    Select appropriate scraper based on store URL.
+
+    Uses the ScraperFactory to match the item URL domain
+    to the correct scraper. Falls back to ATB if no match.
+
     Args:
         item: StoreItem with associated store.
-    
+
     Returns:
         Scraper instance for the store.
     """
-    url_base = (item.store.url_base or "").lower()
-    store_name = item.store.name.lower()
+    if not item.url:
+        return None
 
-    if "atbmarket" in url_base or "atb" in store_name:
-        return ATBScraper()
-    
-    if "silpo" in url_base or "сільпо" in store_name:
-        return SilpoScraper()
+    try:
+        return _factory.get_scraper(item.url)
+    except ValueError:
+        # Try using store's base URL if item URL didn't match
+        url_base = getattr(item.store, "url_base", None) or ""
+        if url_base:
+            try:
+                return _factory.get_scraper(url_base)
+            except ValueError:
+                pass
 
-    # Default fallback
-    logger.warning(
-        f"No specific scraper for store '{item.store.name}', using ATB"
-    )
-    return ATBScraper()
+        logger.warning(
+            "No scraper found for store '%s' (url=%s), skipping",
+            item.store.name, item.url,
+        )
+        return None
 
 
 @shared_task(
@@ -69,48 +69,47 @@ def _get_scraper_for_store_item(item: StoreItem):
 def scrape_store_item_task(self, store_item_id: int) -> str:
     """
     Scrape a single store item and update its price.
-    
+
     This task:
         1. Fetches the StoreItem from database
-        2. Selects appropriate scraper
+        2. Selects appropriate scraper via Factory
         3. Scrapes the product page
-        4. Updates the price if successful
-    
-    Args:
-        store_item_id: Database ID of the StoreItem to scrape.
-    
-    Returns:
-        Status message describing the result.
-    
-    Retry Policy:
-        - Max 3 retries with 60s delay
-        - Soft time limit: 2 minutes
-        - Hard time limit: 3 minutes
+        4. Updates the price and product image if successful
     """
-    logger.info(f"Starting scrape task for StoreItem {store_item_id}")
+    logger.info("Starting scrape task for StoreItem %d", store_item_id)
 
     try:
         item = StoreItem.objects.select_related(
             "store", "product"
         ).get(id=store_item_id)
     except StoreItem.DoesNotExist:
-        logger.error(f"StoreItem {store_item_id} not found")
+        logger.error("StoreItem %d not found", store_item_id)
         return f"StoreItem {store_item_id} not found"
 
     if not item.url:
-        logger.warning(f"StoreItem {store_item_id} has no URL")
+        logger.warning("StoreItem %d has no URL", store_item_id)
         return f"StoreItem {store_item_id}: No URL provided"
 
     scraper = _get_scraper_for_store_item(item)
+    if scraper is None:
+        return f"StoreItem {store_item_id}: No scraper available"
 
     try:
         result = scraper.scrape_product(item.url)
-        
+
         if result.get("status") == "success" and result.get("price"):
             with transaction.atomic():
+                # Update Price
                 item.price = result["price"]
                 item.save(update_fields=["price", "updated_at"])
-            
+
+                # Update Image if found and current is empty
+                image_url = result.get("image_url")
+                if image_url and not item.product.image_url:
+                    item.product.image_url = image_url
+                    item.product.save(update_fields=["image_url"])
+                    logger.info("Updated image for %s", item.product.name)
+
             message = (
                 f"Updated {item.product.name} @ {item.store.name}: "
                 f"{item.price} UAH"
@@ -120,27 +119,31 @@ def scrape_store_item_task(self, store_item_id: int) -> str:
 
         error_msg = result.get("error", "Unknown error")
         logger.warning(
-            f"Scrape failed for {item.product.name}: {error_msg}"
+            "Scrape failed for %s: %s", item.product.name, error_msg
         )
-        
+
         # Retry on transient errors
-        if "timeout" in error_msg.lower():
+        if "timeout" in str(error_msg).lower() or "browser" in str(error_msg).lower():
             raise self.retry(exc=Exception(error_msg))
-        
+
         return f"Failed: {item.product.name} - {error_msg}"
 
     except SoftTimeLimitExceeded:
-        logger.error(f"Scrape task timed out for item {store_item_id}")
+        logger.error("Scrape task timed out for item %d", store_item_id)
         raise self.retry(exc=SoftTimeLimitExceeded())
 
+    except self.MaxRetriesExceededError:
+        logger.error("Max retries exceeded for item %d", store_item_id)
+        return f"Max retries exceeded for StoreItem {store_item_id}"
+
     except Exception as e:
-        logger.exception(f"Unexpected error scraping item {store_item_id}")
-        
+        logger.exception("Unexpected error scraping item %d", store_item_id)
+
         # Check if we should retry
         if self.request.retries < self.max_retries:
             raise self.retry(exc=e)
-        
-        return f"Error after retries: {str(e)}"
+
+        return f"Error after retries: {e}"
 
 
 @shared_task(
@@ -150,14 +153,14 @@ def scrape_store_item_task(self, store_item_id: int) -> str:
 def scrape_all_items_periodic() -> str:
     """
     Queue scraping tasks for all StoreItem entries.
-    
+
     Intended to be scheduled by Celery Beat (e.g., daily at 6 AM).
-    
+
     This task acts as an orchestrator:
         - Fetches all items that need updating
         - Queues individual scrape tasks
         - Does not block on individual scrapes
-    
+
     Returns:
         Summary message with count of queued items.
     """
@@ -171,7 +174,7 @@ def scrape_all_items_periodic() -> str:
         return "No items to scrape"
 
     queued_count = 0
-    
+
     for item in items.iterator():
         try:
             # Queue with countdown to spread load
@@ -182,7 +185,7 @@ def scrape_all_items_periodic() -> str:
             )
             queued_count += 1
         except Exception as e:
-            logger.error(f"Failed to queue scrape for item {item.id}: {e}")
+            logger.error("Failed to queue scrape for item %d: %s", item.id, e)
 
     message = f"Queued {queued_count}/{total_count} items for scraping"
     logger.info(message)
@@ -193,12 +196,12 @@ def scrape_all_items_periodic() -> str:
 def scrape_single_store(store_id: int) -> str:
     """
     Queue scraping tasks for all items from a specific store.
-    
+
     Useful for manual refresh of a single store's prices.
-    
+
     Args:
         store_id: Database ID of the Store.
-    
+
     Returns:
         Summary message.
     """
@@ -206,13 +209,13 @@ def scrape_single_store(store_id: int) -> str:
         store_id=store_id,
         url__isnull=False
     ).exclude(url="")
-    
+
     count = items.count()
-    
+
     for idx, item in enumerate(items):
         scrape_store_item_task.apply_async(
             args=[item.id],
             countdown=idx * 2
         )
-    
+
     return f"Queued {count} items from store {store_id}"

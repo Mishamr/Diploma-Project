@@ -167,60 +167,22 @@ export default function ProductFeed() {
      * @param {boolean} isRefresh - Whether this is a pull-to-refresh action.
      */
     const loadProducts = useCallback(async (isRefresh = false, query = '') => {
-        // Only show full loading on initial load or explicit refresh
-        if (loading && !isRefresh && !products.length) setLoading(true);
+        if (!isRefresh && !products.length) setLoading(true);
         setError(null);
 
-        // Demo products fallback for offline mode
-        const demoProducts = [
-            { id: 1, name: 'Молоко Галичина 2.5%', category: 'Молочні продукти', image_url: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?auto=format&fit=crop&w=300&q=80', cheapest_option: { price: 42.90, store_name: 'АТБ' } },
-            { id: 2, name: 'Хліб Київхліб', category: 'Хлібобулочні', image_url: 'https://images.unsplash.com/photo-1598373182133-52452f7691f6?auto=format&fit=crop&w=300&q=80', cheapest_option: { price: 28.50, store_name: 'Сільпо' } },
-            { id: 3, name: 'Курка філе', category: "М'ясо", image_url: 'https://images.unsplash.com/photo-1587593810167-a84920ea0781?auto=format&fit=crop&w=300&q=80', cheapest_option: { price: 149.00, store_name: 'METRO' } },
-            { id: 4, name: 'Картопля Україна', category: 'Овочі', image_url: 'https://images.unsplash.com/photo-1518977676601-b53f82a6b69d?auto=format&fit=crop&w=300&q=80', cheapest_option: { price: 18.90, store_name: 'АТБ' } },
-            { id: 5, name: 'Яблука Голден', category: 'Фрукти', image_url: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?auto=format&fit=crop&w=300&q=80', cheapest_option: { price: 45.00, store_name: 'Рукавичка' } },
-            { id: 6, name: 'Coca-Cola 1.5л', category: 'Напої', image_url: 'https://images.unsplash.com/photo-1622483767028-3f66f32aef97?auto=format&fit=crop&w=300&q=80', cheapest_option: { price: 32.50, store_name: 'Сільпо' } },
-            { id: 7, name: 'Гречка Хуторок', category: 'Крупи', image_url: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=300&q=80', cheapest_option: { price: 45.90, store_name: 'АТБ' } },
-            { id: 8, name: 'Шоколад Roshen', category: 'Солодощі', image_url: 'https://images.unsplash.com/photo-1606312619070-d48b4c652a52?auto=format&fit=crop&w=300&q=80', cheapest_option: { price: 38.00, store_name: 'Фора' } },
-            { id: 9, name: 'Масло Президент', category: 'Молочні продукти', image_url: 'https://images.unsplash.com/photo-1589985270826-4b7bb135bc9d?auto=format&fit=crop&w=300&q=80', cheapest_option: { price: 89.90, store_name: 'Сільпо' } },
-            { id: 10, name: 'Олія Олейна', category: 'Крупи', image_url: 'https://images.unsplash.com/photo-1474979266404-7eaacbcdbf41?auto=format&fit=crop&w=300&q=80', cheapest_option: { price: 64.50, store_name: 'АТБ' } },
-        ];
-
         try {
-            // Local filtering for demo purposes if query is short or API fails
-            if (query && demoProducts.some(p => p.name.toLowerCase().includes(query.toLowerCase()))) {
-                const filtered = demoProducts.filter(p => p.name.toLowerCase().includes(query.toLowerCase()));
-                setProducts(filtered);
-                setLoading(false);
-                return;
-            }
-
             const response = await getProducts(query);
             const apiProducts = response.data.results || response.data || [];
-
-            // If API returns empty but we have query, trust API. If no query, fallback to demo.
-            if (apiProducts.length > 0) {
-                setProducts(apiProducts);
-            } else if (!query) {
-                setProducts(demoProducts);
-            } else {
-                setProducts([]); // No results for query
-            }
+            setProducts(apiProducts);
         } catch (err) {
-            console.warn('API unavailable, using demo data:', err.message);
-            // Local filter of demo data
-            if (query) {
-                setProducts(demoProducts.filter(p =>
-                    p.name.toLowerCase().includes(query.toLowerCase()) ||
-                    p.category.toLowerCase().includes(query.toLowerCase())
-                ));
-            } else {
-                setProducts(demoProducts);
-            }
+            console.warn('API unavailable:', err.message);
+            setError('Сервер недоступний. Запустіть бекенд (fiscus.bat → [8])');
+            setProducts([]);
         } finally {
             setLoading(false);
             setRefreshing(false);
         }
-    }, [products.length]); // depend on products.length to avoid infinite reset loops? No, actually simpler deps.
+    }, [products.length]);
 
     // Load when debouncedQuery changes
     useEffect(() => {

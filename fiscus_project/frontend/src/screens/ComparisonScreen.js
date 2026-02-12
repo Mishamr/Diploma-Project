@@ -117,7 +117,7 @@ const DashboardScreen = ({ navigation }) => {
                             <Text style={styles.actionDesc}>Порівняти ціни</Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('ProductFeed')}>
+                        <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('Home')}>
                             <View style={[styles.actionIcon, { backgroundColor: theme.colors.surfaceLight }]}>
                                 <Ionicons name="search-outline" size={24} color={theme.colors.primary} />
                             </View>

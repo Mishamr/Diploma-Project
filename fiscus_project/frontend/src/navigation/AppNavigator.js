@@ -20,6 +20,7 @@ import CartScreen from '../screens/CartScreen';
 import MapScreen from '../screens/MapScreen';
 import ComparisonScreen from '../screens/ComparisonScreen';
 import LoginScreen from '../screens/LoginScreen';
+import RegisterScreen from '../screens/RegisterScreen';
 import SurvivalScreen from '../screens/SurvivalScreen';
 import PromotionsScreen from '../screens/PromotionsScreen';
 
@@ -138,6 +139,13 @@ const appScreens = [
     component: LoginScreen,
     options: {
       title: 'Вхід',
+    },
+  },
+  {
+    name: 'Register',
+    component: RegisterScreen,
+    options: {
+      title: 'Реєстрація',
     },
   },
   {

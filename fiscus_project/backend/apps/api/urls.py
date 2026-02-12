@@ -23,6 +23,7 @@ from apps.api.views import (
     StorePromotionsView,
 )
 from apps.api.views_premium import SurvivalView, PriceHistoryView
+from apps.api.views_auth import RegisterView, UserProfileView
 
 # Configure router for viewsets
 router = DefaultRouter()
@@ -40,6 +41,10 @@ urlpatterns = [
     # JWT Authentication
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+    
+    # User Management
+    path('auth/register/', RegisterView.as_view(), name='auth_register'),
+    path('auth/profile/', UserProfileView.as_view(), name='auth_profile'),
     
     # Status endpoint
     path('status/', StatusView.as_view(), name='status'),

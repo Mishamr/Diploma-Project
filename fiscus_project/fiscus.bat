@@ -29,12 +29,13 @@ echo  │    [5] View Docker Logs                                   │
 echo  │    [6] Reinstall Frontend Dependencies                    │
 echo  │    [7] Install ALL Dependencies (Python + Node.js)        │
 echo  │    [8] Start Backend Locally (without Docker)             │
+echo  │    [9] Run Product Scraper                                │
 echo  │    [0] Exit                                               │
 echo  │                                                           │
 echo  └───────────────────────────────────────────────────────────┘
 echo.
 
-set /p choice="  Enter choice [0-8]: "
+set /p choice="  Enter choice [0-9]: "
 
 if "%choice%"=="1" goto DOCKER_START
 if "%choice%"=="2" goto FRONTEND_START
@@ -44,6 +45,7 @@ if "%choice%"=="5" goto DOCKER_LOGS
 if "%choice%"=="6" goto FRONTEND_REINSTALL
 if "%choice%"=="7" goto INSTALL_ALL_DEPS
 if "%choice%"=="8" goto LOCAL_BACKEND
+if "%choice%"=="9" goto RUN_SCRAPER
 if "%choice%"=="0" goto EXIT
 
 echo.
@@ -368,6 +370,48 @@ echo    ╚═══════════════════════
 echo.
 python manage.py runserver
 
+pause
+goto MENU
+
+:RUN_SCRAPER
+cls
+echo.
+echo  ════════════════════════════════════════════════════════════
+echo    Running Product Scraper
+echo  ════════════════════════════════════════════════════════════
+echo.
+echo    Scraping products from Ukrainian grocery stores...
+echo    ATB, Silpo, Novus, Varus, Auchan, Metro, Fozzy,
+echo    MegaMarket, Eko, Fora
+echo.
+
+cd /d "%~dp0backend"
+
+echo  [1/3] Checking virtual environment...
+if not exist venv (
+    echo  [!] Virtual environment not found. Creating...
+    python -m venv venv
+)
+
+echo.
+echo  [2/3] Activating virtual environment...
+call venv\Scripts\activate.bat
+
+echo.
+echo  [3/3] Starting scraper...
+echo.
+echo    ╔═════════════════════════════════════════════╗
+echo    ║  Scraper running — results → products.db    ║
+echo    ╚═════════════════════════════════════════════╝
+echo.
+
+python -m apps.scraper.main
+
+echo.
+echo  ════════════════════════════════════════════════════════════
+echo    ✓ Scraping complete! Data saved to backend\products.db
+echo  ════════════════════════════════════════════════════════════
+echo.
 pause
 goto MENU
 

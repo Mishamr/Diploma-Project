@@ -193,6 +193,21 @@ export const loginUser = (username, password) =>
   apiClient.post('/token/', { username, password });
 
 /**
+ * Register a new user.
+ * @param {Object} userData - { username, password, email }
+ * @returns {Promise<Object>} Created user data.
+ */
+export const registerUser = (userData) =>
+  apiClient.post('/auth/register/', userData);
+
+/**
+ * Get current user profile.
+ * @returns {Promise<Object>} User profile data.
+ */
+export const getUserProfile = () =>
+  apiClient.get('/auth/profile/');
+
+/**
  * Get stores near a location.
  * @param {number} lat - Latitude.
  * @param {number} lon - Longitude.

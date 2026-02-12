@@ -12,7 +12,7 @@
 import React, { createContext, useState, useEffect, useCallback } from 'react';
 import * as SecureStore from 'expo-secure-store';
 import { Alert, Platform } from 'react-native';
-import { loginUser } from '../api/client';
+import { loginUser, registerUser, getUserProfile } from '../api/client';
 
 /**
  * Platform-aware storage utilities.
@@ -141,12 +141,6 @@ export const AuthProvider = ({ children }) => {
      * @param {string} username - User's username.
      * @param {string} password - User's password.
      * @returns {Promise<boolean>} True if login successful.
-     * 
-     * @example
-     * const success = await login('john', 'password123');
-     * if (success) {
-     *   navigation.navigate('Home');
-     * }
      */
     const login = useCallback(async (username, password) => {
         if (!username?.trim() || !password) {
@@ -165,52 +159,73 @@ export const AuthProvider = ({ children }) => {
 
             setToken(data.access);
 
-            // Create user object
-            // In production, decode JWT or fetch profile from API
-            const userInfo = {
-                username: username.trim(),
-                // Mock premium status: 'admin' user is premium
-                is_premium: username.toLowerCase() === 'admin',
-            };
+            // Fetch full user profile
+            try {
+                // Wait a bit or retry if immediate fetch fails due to race conditions
+                // But axios interceptor should handle token injection if setToken state isn't instant
+                // We'll rely on storage injection in client.js for consistency
+                const profileResponse = await getUserProfile();
+                const userProfile = profileResponse.data;
 
-            setUser(userInfo);
+                setUser(userProfile);
+                await storage.setItem('user_info', JSON.stringify(userProfile));
 
-            // Persist user info
-            await storage.setItem('user_info', JSON.stringify(userInfo));
+            } catch (profileError) {
+                console.warn('Failed to fetch profile after login:', profileError);
+                // Fallback to basic info
+                const fallbackUser = { username: username.trim() };
+                setUser(fallbackUser);
+                await storage.setItem('user_info', JSON.stringify(fallbackUser));
+            }
 
             return true;
 
         } catch (error) {
             console.error('Login error:', error);
-
-            // Provide user-friendly error message
             let message = 'Login failed. Please try again.';
-
             if (error.response?.status === 401) {
                 message = 'Invalid username or password';
-            } else if (error.response?.status === 400) {
-                message = 'Please check your credentials';
-            } else if (!error.response) {
-                message = 'Network error. Please check your connection.';
             }
-
             Alert.alert('Login Failed', message);
             return false;
-
         } finally {
             setIsLoading(false);
         }
     }, []);
 
     /**
+     * Register a new user.
+     * @param {Object} userData - { username, password, email }
+     * @returns {Promise<boolean>} True if registration and subsequent login successful.
+     */
+    const register = useCallback(async (userData) => {
+        setIsLoading(true);
+        try {
+            await registerUser(userData);
+            // Auto-login after registration
+            // We need to call login, but we need to handle loading state carefully
+            // login sets loading state too
+            setIsLoading(false); // Reset so login can set it
+            return await login(userData.username, userData.password);
+        } catch (error) {
+            console.error('Registration error:', error);
+            let message = 'Registration failed.';
+            if (error.response?.data?.username) {
+                message = 'Username already exists.';
+            } else if (error.response?.data?.password) {
+                message = `Password error: ${error.response.data.password}`;
+            }
+            Alert.alert('Registration Failed', message);
+            setIsLoading(false);
+            return false;
+        }
+    }, [login]);
+
+    /**
      * Manually refresh the access token using stored refresh token.
      * Used when API calls return 401 and automatic refresh fails.
      * 
      * @returns {Promise<boolean>} True if refresh successful.
-     * 
-     * @example
-     * const refreshed = await refreshToken();
-     * if (!refreshed) navigation.navigate('Login');
      */
     const refreshToken = useCallback(async () => {
         try {
@@ -256,10 +271,6 @@ export const AuthProvider = ({ children }) => {
 
     /**
      * Log out current user and clear credentials.
-     * 
-     * @example
-     * await logout();
-     * navigation.navigate('Login');
      */
     const logout = useCallback(async () => {
         setIsLoading(true);
@@ -296,6 +307,7 @@ export const AuthProvider = ({ children }) => {
         isAuthenticated,
         isPremium,
         login,
+        register,
         logout,
         refreshToken,
     };
