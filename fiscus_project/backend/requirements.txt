@@ -15,4 +15,3 @@ gunicorn
 requests
 djangorestframework-simplejwt
 dj-database-url==2.1.0
-sqlalchemy

@@ -3,7 +3,8 @@
 Fiscus — one-shot scraping runner.
 
 Iterates category URLs, picks the right scraper via Factory,
-scrapes products, and upserts them into products.db.
+scrapes products, and upserts them into the Django database
+(PostgreSQL) so they are immediately available via the API.
 
 Usage:
     cd fiscus_project/backend
@@ -11,11 +12,21 @@ Usage:
 """
 
 import logging
+import os
 import sys
 from datetime import datetime
+from urllib.parse import urlparse
 
-from apps.scraper.models import init_db, get_session, upsert_product
-from apps.scraper.stores import ScraperFactory
+# ─── Django bootstrap (needed when running as standalone script) ──────
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings")
+
+import django  # noqa: E402
+django.setup()
+
+from django.db import transaction  # noqa: E402
+
+from apps.core.models import Store, Product, StoreItem, Price  # noqa: E402
+from apps.scraper.stores import ScraperFactory  # noqa: E402
 
 # ─── Logging ──────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -56,6 +67,76 @@ CATEGORY_URLS = [
     # "https://fora.ua/catalog/molocni-produkti",
 ]
 
+# ─── Store name → base URL mapping ───────────────────────────────────
+_STORE_URLS: dict[str, str] = {}
+
+
+def _base_url(url: str) -> str:
+    """Extract 'https://domain.com' from a full URL."""
+    parsed = urlparse(url)
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
+def upsert_product_django(data: dict) -> None:
+    """
+    Insert or update a scraped product into Django ORM models.
+
+    Creates/updates: Store → Product → StoreItem, and appends a Price
+    history record so the frontend can show price trends.
+
+    Parameters
+    ----------
+    data : dict
+        Required keys: store_name, name, price, product_url
+        Optional keys: image_url
+    """
+    store_name: str = data["store_name"]
+    product_name: str = data["name"]
+    price: float = data["price"]
+    product_url: str = data["product_url"]
+    image_url: str = data.get("image_url", "")
+
+    if price is None or price <= 0:
+        raise ValueError(f"Invalid price: {price} for '{product_name}'")
+
+    # Resolve store base URL (cache per store_name for this run)
+    if store_name not in _STORE_URLS:
+        _STORE_URLS[store_name] = _base_url(product_url)
+
+    with transaction.atomic():
+        # 1. Store
+        store, _ = Store.objects.get_or_create(
+            name=store_name,
+            defaults={"url_base": _STORE_URLS[store_name]},
+        )
+
+        # 2. Product (global catalog entry)
+        product, created = Product.objects.get_or_create(
+            name=product_name,
+            defaults={"image_url": image_url},
+        )
+        # Update image if product had none
+        if not created and not product.image_url and image_url:
+            product.image_url = image_url
+            product.save(update_fields=["image_url"])
+
+        # 3. StoreItem (price per store)
+        StoreItem.objects.update_or_create(
+            store=store,
+            product=product,
+            defaults={
+                "price": price,
+                "url": product_url,
+            },
+        )
+
+        # 4. Price history (for charts / promotions detection)
+        Price.objects.create(
+            product=product,
+            store_name=store_name,
+            price_value=price,
+        )
+
 
 def run():
     """Main entry point."""
@@ -64,8 +145,6 @@ def run():
     logger.info("Registered stores: %s", ", ".join(ScraperFactory.supported_stores()))
     logger.info("=" * 60)
 
-    init_db()
-    session = get_session()
     factory = ScraperFactory()
 
     total_scraped = 0
@@ -97,7 +176,7 @@ def run():
         saved = 0
         for p in products:
             try:
-                upsert_product(session, p)
+                upsert_product_django(p)
                 saved += 1
             except (KeyError, ValueError) as exc:
                 logger.warning("  ✗ Bad data for '%s': %s", p.get("name", "?"), exc)
@@ -107,8 +186,6 @@ def run():
         total_scraped += len(products)
         total_saved += saved
         logger.info("  ✓ Scraped %d, saved %d", len(products), saved)
-
-    session.close()
 
     logger.info("=" * 60)
     logger.info("DONE  │  Scraped: %d  │  Saved: %d  │  Failed URLs: %d",

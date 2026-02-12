@@ -17,12 +17,11 @@ Adding a new store
 import importlib
 import logging
 import pkgutil
-from pathlib import Path
 
 logger = logging.getLogger("fiscus.scrapers")
 
 # ── Core exports ──────────────────────────────────────────────────────
-from apps.scraper.stores.base import (    # noqa: F401
+from .base import (    # noqa: F401
     BaseScraper,
     register_scraper,
     get_registry,
@@ -31,19 +30,18 @@ from apps.scraper.stores.base import (    # noqa: F401
 )
 
 # ── Auto-discover & import every sibling module ───────────────────────
-_PACKAGE_DIR = str(Path(__file__).resolve().parent)
 _SKIP = {"base", "factory", "__init__"}
 
-for _finder, _name, _is_pkg in pkgutil.iter_modules([_PACKAGE_DIR]):
+for _finder, _name, _is_pkg in pkgutil.iter_modules(__path__):
     if _name in _SKIP:
         continue
     try:
-        importlib.import_module(f"apps.scraper.stores.{_name}")
+        importlib.import_module(f".{_name}", package=__name__)
     except Exception as exc:
         logger.warning("Failed to auto-import store module '%s': %s", _name, exc)
 
 # ── Factory (reads the now-populated registry) ────────────────────────
-from apps.scraper.stores.factory import ScraperFactory  # noqa: F401
+from .factory import ScraperFactory  # noqa: F401
 
 # ── Re-export all discovered scraper classes by name ──────────────────
 # This allows `from apps.scraper.stores import ATBScraper` etc.
