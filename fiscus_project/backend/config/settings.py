@@ -63,9 +63,11 @@ if not DATABASES['default']:
 
 # Celery configuration
 CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0') # Added CELERY_RESULT_BACKEND
 CELERY_ACCEPT_CONTENT = ['json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Europe/Kiev' # Added CELERY_TIMEZONE and updated spelling
 
 # Celery Beat Schedule
 from celery.schedules import crontab
@@ -73,6 +75,10 @@ CELERY_BEAT_SCHEDULE = {
     'scrape-every-morning': {
         'task': 'apps.scraper.tasks.scrape_all_items_periodic',
         'schedule': crontab(hour=6, minute=0),
+    },
+    'scrape-daily-23-50': { # Added new schedule entry
+        'task': 'apps.scraper.tasks.scrape_all_items_periodic',
+        'schedule': crontab(hour=23, minute=50),
     },
 }
 

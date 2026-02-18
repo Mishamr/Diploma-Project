@@ -49,16 +49,16 @@ CATEGORY_URLS = [
     "https://silpo.ua/category/hlibobulochni-virobi-320",
     "https://silpo.ua/category/myaso-ta-kovbasy-316",
     # Novus
-    "https://novus.online/category/molocna-produkciya",
-    "https://novus.online/category/hlibobulochni-virobi",
-    # Varus  (uncomment when URLs confirmed)
+    "https://novus.ua/category/molocna-produkciya",
+    "https://novus.ua/category/hlibobulochni-virobi",
+    # Varus
     # "https://varus.ua/catalog/dairy",
     # Auchan
     # "https://auchan.ua/ua/supermarket/molocni-produkti/",
     # Metro
-    # "https://metro.zakaz.ua/uk/categories/dairy/",
+    # "https://www.metro.ua/promotions",
     # Fozzy
-    # "https://fozzyshop.ua/molochnye-produkty/",
+    # "https://fozzy.ua/molochnye-produkty/",
     # MegaMarket
     # "https://megamarket.ua/catalog/molocni-produkti",
     # Eko
@@ -67,76 +67,7 @@ CATEGORY_URLS = [
     # "https://fora.ua/catalog/molocni-produkti",
 ]
 
-# ─── Store name → base URL mapping ───────────────────────────────────
-_STORE_URLS: dict[str, str] = {}
-
-
-def _base_url(url: str) -> str:
-    """Extract 'https://domain.com' from a full URL."""
-    parsed = urlparse(url)
-    return f"{parsed.scheme}://{parsed.netloc}"
-
-
-def upsert_product_django(data: dict) -> None:
-    """
-    Insert or update a scraped product into Django ORM models.
-
-    Creates/updates: Store → Product → StoreItem, and appends a Price
-    history record so the frontend can show price trends.
-
-    Parameters
-    ----------
-    data : dict
-        Required keys: store_name, name, price, product_url
-        Optional keys: image_url
-    """
-    store_name: str = data["store_name"]
-    product_name: str = data["name"]
-    price: float = data["price"]
-    product_url: str = data["product_url"]
-    image_url: str = data.get("image_url", "")
-
-    if price is None or price <= 0:
-        raise ValueError(f"Invalid price: {price} for '{product_name}'")
-
-    # Resolve store base URL (cache per store_name for this run)
-    if store_name not in _STORE_URLS:
-        _STORE_URLS[store_name] = _base_url(product_url)
-
-    with transaction.atomic():
-        # 1. Store
-        store, _ = Store.objects.get_or_create(
-            name=store_name,
-            defaults={"url_base": _STORE_URLS[store_name]},
-        )
-
-        # 2. Product (global catalog entry)
-        product, created = Product.objects.get_or_create(
-            name=product_name,
-            defaults={"image_url": image_url},
-        )
-        # Update image if product had none
-        if not created and not product.image_url and image_url:
-            product.image_url = image_url
-            product.save(update_fields=["image_url"])
-
-        # 3. StoreItem (price per store)
-        StoreItem.objects.update_or_create(
-            store=store,
-            product=product,
-            defaults={
-                "price": price,
-                "url": product_url,
-            },
-        )
-
-        # 4. Price history (for charts / promotions detection)
-        Price.objects.create(
-            product=product,
-            store_name=store_name,
-            price_value=price,
-        )
-
+from apps.scraper.services import ingest_scraped_data
 
 def run():
     """Main entry point."""
@@ -173,19 +104,20 @@ def run():
             logger.warning("  ⚠ 0 products (selectors outdated?)")
             continue
 
+
         saved = 0
         for p in products:
             try:
-                upsert_product_django(p)
-                saved += 1
-            except (KeyError, ValueError) as exc:
-                logger.warning("  ✗ Bad data for '%s': %s", p.get("name", "?"), exc)
+                # Use centralized ingestion with validation
+                result = ingest_scraped_data(p, p.get("store_name", scraper.STORE_NAME))
+                if result:
+                    saved += 1
             except Exception as exc:
-                logger.warning("  ✗ DB error for '%s': %s", p.get("name", "?"), exc)
+                logger.warning("  ✗ Error processing '%s': %s", p.get("name", "?"), exc)
 
         total_scraped += len(products)
         total_saved += saved
-        logger.info("  ✓ Scraped %d, saved %d", len(products), saved)
+        logger.info("  ✓ Scraped %d, ingested %d", len(products), saved)
 
     logger.info("=" * 60)
     logger.info("DONE  │  Scraped: %d  │  Saved: %d  │  Failed URLs: %d",

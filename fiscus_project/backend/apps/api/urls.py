@@ -21,6 +21,7 @@ from apps.api.views import (
     DashboardStatsView,
     PromotionsStoreListView,
     StorePromotionsView,
+    ManagerScraperView,
 )
 from apps.api.views_premium import SurvivalView, PriceHistoryView
 from apps.api.views_auth import RegisterView, UserProfileView
@@ -32,6 +33,7 @@ router.register(r'stores', StoreViewSet, basename='store')
 router.register(r'shopping-lists', ShoppingListViewSet, basename='shopping-list')
 router.register(r'comparison', ComparisonViewSet, basename='comparison')
 router.register(r'promotions', PromotionsViewSet, basename='promotions')
+router.register(r'scraper', ManagerScraperView, basename='scraper')
 
 # URL patterns
 urlpatterns = [

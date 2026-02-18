@@ -23,7 +23,7 @@ NAME_WEIGHT_PATTERN = re.compile(
     re.IGNORECASE
 )
 
-SPECIAL_CHARS_PATTERN = re.compile(r"[^\w\s]")
+SPECIAL_CHARS_PATTERN = re.compile(r"[^\w\s%]")
 
 
 def calculate_unit_price(

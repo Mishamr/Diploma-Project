@@ -50,12 +50,12 @@ STORE_CONFIGS = {
     },
     'auchan': {
         'name': 'Ашан',
-        'promo_url': 'https://auchan.zakaz.ua/uk/special_offers/',
+        'promo_url': 'https://auchan.ua/ua/promotions/',
         'selectors': {}
     },
     'metro': {
         'name': 'METRO',
-        'promo_url': 'https://metro.zakaz.ua/uk/special_offers/',
+        'promo_url': 'https://www.metro.ua/promotions',
         'selectors': {}
     },
     'fora': {
@@ -65,7 +65,7 @@ STORE_CONFIGS = {
     },
     'novus': {
         'name': 'NOVUS',
-        'promo_url': 'https://novus.zakaz.ua/uk/special_offers/',
+        'promo_url': 'https://novus.ua/promotions',
         'selectors': {}
     },
     'varus': {
@@ -208,8 +208,20 @@ class PromotionsScraper:
         }
 
 
-# Singleton instance for use in views
-promotions_scraper = PromotionsScraper()
+# Singleton instance lazy loader
+_scraper_instance = None
+
+def get_scraper_instance() -> PromotionsScraper:
+    """Lazy load the scraper instance to avoid import-time side effects."""
+    global _scraper_instance
+    if _scraper_instance is None:
+        try:
+            _scraper_instance = PromotionsScraper()
+        except Exception as e:
+            logger.error(f"Failed to initialize scraper: {e}")
+            # Fallback for when Chrome is not available
+            _scraper_instance = PromotionsScraper(headless=True)
+    return _scraper_instance
 
 
 def get_store_promotions(store_id: str, limit: int = 20) -> Dict[str, Any]:
@@ -223,9 +235,10 @@ def get_store_promotions(store_id: str, limit: int = 20) -> Dict[str, Any]:
     Returns:
         Dict with store info and promotional products
     """
-    return promotions_scraper.get_promotions(store_id, limit)
+    return get_scraper_instance().get_promotions(store_id, limit)
 
 
 def get_all_stores() -> List[Dict[str, str]]:
     """Returns list of all available stores."""
-    return promotions_scraper.get_store_list()
+    return get_scraper_instance().get_store_list()
+

@@ -156,8 +156,10 @@ class PriceHistoryView(APIView):
             ]
 
             # If no history exists, generate mock data for demo
+            is_demo_data = False
             if not data:
                 data = self._generate_mock_history()
+                is_demo_data = True
                 logger.info(f"Generated mock history for product {product_id}")
 
             # Extract just prices array for chart compatibility
@@ -167,6 +169,7 @@ class PriceHistoryView(APIView):
                 "product_id": product_id,
                 "history": data,
                 "prices": prices,  # Array format expected by frontend
+                "is_demo": is_demo_data,
             })
 
         except Exception as e:

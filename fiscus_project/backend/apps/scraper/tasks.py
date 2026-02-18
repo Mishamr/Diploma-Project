@@ -18,6 +18,7 @@ from django.db import transaction
 
 from apps.core.models import StoreItem
 from apps.scraper.stores import ScraperFactory
+from apps.scraper.services import ingest_scraped_data
 
 logger = logging.getLogger(__name__)
 
@@ -219,3 +220,34 @@ def scrape_single_store(store_id: int) -> str:
         )
 
     return f"Queued {count} items from store {store_id}"
+
+
+@shared_task(
+    soft_time_limit=600,
+    time_limit=660
+)
+def scrape_category_task(url: str, store_name: str) -> str:
+    """
+    Scrape a category page and ingest valid products.
+    
+    Anti-Bug Protocol:
+    1. Scrapes list of products.
+    2. Validates each via ingest_scraped_data (Pydantic).
+    3. Saves only valid data.
+    """
+    logger.info(f"Starting category scrape: {url}")
+    
+    try:
+        scraper = _factory.get_scraper(url)
+        results = scraper.scrape_category(url)
+        
+        success_count = 0
+        for item_data in results:
+            if ingest_scraped_data(item_data, store_name):
+                success_count += 1
+                
+        return f"Ingested {success_count}/{len(results)} products from {url}"
+        
+    except Exception as e:
+        logger.error(f"Category scrape failed: {e}")
+        return f"Failed: {e}"

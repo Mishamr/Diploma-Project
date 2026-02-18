@@ -112,12 +112,11 @@ class ShoppingListSerializer(serializers.ModelSerializer):
     best_store = serializers.SerializerMethodField()
     total_price = serializers.SerializerMethodField()
     progress = serializers.SerializerMethodField()
-    distance = serializers.SerializerMethodField()
 
     class Meta:
         model = ShoppingList
         fields = ['id', 'name', 'created_at', 'items', 'total_items', 
-                  'best_store', 'total_price', 'progress', 'distance']
+                  'best_store', 'total_price', 'progress']
 
     def get_total_items(self, obj) -> int:
         """Calculate total number of items in the list."""
@@ -161,9 +160,3 @@ class ShoppingListSerializer(serializers.ModelSerializer):
             if item.product.store_items.exists()
         )
         return int((found / total) * 100)
-    
-    def get_distance(self, obj) -> str | None:
-        """Placeholder for distance calculation."""
-        # Would use user location in real implementation
-        return None
-

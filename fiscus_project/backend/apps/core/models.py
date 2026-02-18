@@ -1,4 +1,7 @@
 from django.db import models
+from django.contrib.auth.models import User
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 
 
 class Store(models.Model):
@@ -101,10 +104,17 @@ class StoreItem(models.Model):
 
 class ShoppingList(models.Model):
     """
-    User shopping list (MVP: without auth restrictions).
+    User shopping list with owner association.
     """
 
-    # In a real app this should be FK to request.user
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='shopping_lists',
+        null=True,
+        blank=True,
+        verbose_name="Власник",
+    )
     name = models.CharField(max_length=100, default="My Shopping List")
     created_at = models.DateTimeField(auto_now_add=True)
     items = models.ManyToManyField(Product, through="ShoppingListItem")
@@ -140,7 +150,7 @@ class Price(models.Model):
     """
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name='price_history')
     store_name = models.CharField(max_length=200)
-    price_value = models.FloatField()
+    price_value = models.DecimalField(max_digits=10, decimal_places=2)
     scraped_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -148,9 +158,6 @@ class Price(models.Model):
         verbose_name = "Історія цін"
 
 
-from django.contrib.auth.models import User
-from django.db.models.signals import post_save
-from django.dispatch import receiver
 
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
@@ -162,11 +169,14 @@ class UserProfile(models.Model):
     def __str__(self):
         return f"{self.user.username} Profile"
 
+
 @receiver(post_save, sender=User)
 def create_user_profile(sender, instance, created, **kwargs):
     if created:
-        UserProfile.objects.create(user=instance)
+        UserProfile.objects.get_or_create(user=instance)
+
 
 @receiver(post_save, sender=User)
 def save_user_profile(sender, instance, **kwargs):
-    instance.profile.save()
+    if hasattr(instance, 'profile'):
+        instance.profile.save()

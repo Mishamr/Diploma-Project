@@ -14,14 +14,18 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from django.db.models import Prefetch
 
-from apps.core.models import Product, Store, ShoppingList, StoreItem
+from apps.core.models import (
+    Product, Store, ShoppingList, StoreItem, ShoppingListItem, Price
+)
 from apps.api.serializers import (
     ProductSerializer, ProductDetailSerializer,
-    StoreSerializer, ShoppingListSerializer
+    StoreSerializer, StoreItemSerializer,
+    ShoppingListSerializer, ShoppingListItemSerializer
 )
-from apps.api.permissions import IsPremiumUser
+from apps.api.permissions import IsPremiumUser, IsManager
 from apps.scraper.services import compare_prices
 from apps.scraper.smart_selector import get_best_value_product
+from apps.scraper.tasks import scrape_all_items_periodic
 
 logger = logging.getLogger(__name__)
 
@@ -121,22 +125,24 @@ class ShoppingListViewSet(viewsets.ModelViewSet):
     ViewSet for managing shopping lists.
     
     Provides full CRUD operations for ShoppingList model.
-    
-    Note:
-        In production, should filter by authenticated user.
+    Filters lists by the authenticated user.
     """
-    queryset = ShoppingList.objects.all()
     serializer_class = ShoppingListSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
         """
-        Return shopping lists.
-        
-        TODO: Filter by request.user when authentication is enforced.
+        Return shopping lists owned by the current user.
         """
-        return ShoppingList.objects.all().prefetch_related(
+        return ShoppingList.objects.filter(
+            user=self.request.user
+        ).prefetch_related(
             'shoppinglistitem_set__product__store_items__store'
         )
+
+    def perform_create(self, serializer):
+        """Assign the current user as the list owner."""
+        serializer.save(user=self.request.user)
 
     @action(detail=True, methods=['post'])
     def add_item(self, request, pk=None):
@@ -146,7 +152,6 @@ class ShoppingListViewSet(viewsets.ModelViewSet):
         POST /api/v1/shopping-lists/{id}/add_item/
         Body: { "product_id": 1, "quantity": 2 }
         """
-        from apps.core.models import ShoppingListItem
         
         shopping_list = self.get_object()
         product_id = request.data.get('product_id')
@@ -188,7 +193,6 @@ class ShoppingListViewSet(viewsets.ModelViewSet):
         POST /api/v1/shopping-lists/{id}/remove_item/
         Body: { "item_id": 1 } or { "product_id": 1 }
         """
-        from apps.core.models import ShoppingListItem
         
         shopping_list = self.get_object()
         item_id = request.data.get('item_id')
@@ -229,7 +233,6 @@ class ShoppingListViewSet(viewsets.ModelViewSet):
         POST /api/v1/shopping-lists/{id}/toggle_item/
         Body: { "item_id": 1 }
         """
-        from apps.core.models import ShoppingListItem
         
         shopping_list = self.get_object()
         item_id = request.data.get('item_id')
@@ -272,7 +275,6 @@ class PromotionsViewSet(viewsets.ViewSet):
         """
         from datetime import datetime, timedelta
         from django.db.models import Avg
-        from apps.core.models import Price
         
         promotions = []
         
@@ -494,7 +496,7 @@ class DashboardStatsView(APIView):
         
         # Get counts
         active_lists = ShoppingList.objects.count()
-        stores_tracked = Store.objects.filter(is_active=True).count()
+        stores_tracked = Store.objects.count()
         
         # Calculate estimated savings (difference between average and cheapest)
         total_savings = Decimal('0')
@@ -520,14 +522,49 @@ class DashboardStatsView(APIView):
                 'created_at': sl.created_at.isoformat(),
             })
         
+        user_name = (
+            request.user.username if request.user.is_authenticated
+            else 'Користувач'
+        )
+        
         return Response({
             'active_lists': active_lists,
             'stores_tracked': stores_tracked,
             'savings_this_month': float(total_savings),
             'savings_trend': 23.0,  # Mock trend for now
             'recent_lists': recent_lists,
-            'user_name': 'Користувач',  # Would come from auth in production
+            'user_name': user_name,
         })
+
+
+class ManagerScraperView(viewsets.ViewSet):
+    """
+    Manager-only viewset for controlling the scraper.
+    
+    RBAC:
+        - Only Managers can access this.
+    """
+    permission_classes = [permissions.IsAuthenticated, IsManager]
+    
+    @action(detail=False, methods=['post'])
+    def run(self, request):
+        """
+        Force update: Trigger scraping for all items immediately.
+        """
+        try:
+            task = scrape_all_items_periodic.delay()
+            logger.info(f"Manager {request.user.username} triggered force update. Task ID: {task.id}")
+            return Response({
+                "status": "started",
+                "message": "Scraping process initiated in background.",
+                "task_id": task.id
+            })
+        except Exception as e:
+            logger.error(f"Failed to trigger scraper: {e}")
+            return Response(
+                {"error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class PromotionsStoreListView(APIView):

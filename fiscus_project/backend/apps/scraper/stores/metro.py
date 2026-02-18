@@ -17,21 +17,21 @@ from .base import BaseScraper, register_scraper, clean_price
 logger = logging.getLogger("fiscus.scrapers.metro")
 
 
-@register_scraper("metro.zakaz.ua")
+@register_scraper("metro.ua", "www.metro.ua")
 class MetroScraper(BaseScraper):
     STORE_NAME = "Metro"
-    BASE_URL = "https://metro.zakaz.ua"
+    BASE_URL = "https://www.metro.ua"
 
     SEL_CARD = (
+        ".product-card, "
+        ".catalog-item, "
         ".product-tile, "
-        ".CatalogTile, "
-        "[data-marker='product'], "
-        ".product-card"
+        ".promotion-item"
     )
     SEL_NAME = (
-        ".product-tile__title, "
-        ".CatalogTile__title, "
         ".product-title, "
+        ".product-name, "
+        ".title, "
         "h3, h4"
     )
     SEL_PRICE = (

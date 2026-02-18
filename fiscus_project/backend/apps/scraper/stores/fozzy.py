@@ -10,21 +10,21 @@ from .base import BaseScraper, register_scraper, clean_price
 logger = logging.getLogger("fiscus.scrapers.fozzy")
 
 
-@register_scraper("fozzyshop.ua", "www.fozzyshop.ua")
+@register_scraper("fozzy.ua", "www.fozzy.ua")
 class FozzyScraper(BaseScraper):
     STORE_NAME = "Fozzy"
-    BASE_URL = "https://fozzyshop.ua"
+    BASE_URL = "https://fozzy.ua"
 
     SEL_CARD = (
         ".product-card, "
-        ".product-item, "
+        ".product, "
         ".catalog-item, "
-        "[data-product]"
+        ".promotion-item"
     )
     SEL_NAME = (
-        ".product-card__name, "
-        ".product-item__title, "
         ".product-title, "
+        ".product-name, "
+        ".title, "
         "h3, h4"
     )
     SEL_PRICE = (

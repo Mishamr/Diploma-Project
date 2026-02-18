@@ -23,6 +23,8 @@ import LoginScreen from '../screens/LoginScreen';
 import RegisterScreen from '../screens/RegisterScreen';
 import SurvivalScreen from '../screens/SurvivalScreen';
 import PromotionsScreen from '../screens/PromotionsScreen';
+import PriceCheckScreen from '../screens/PriceCheckScreen';
+
 
 // Context & Theme
 import { AuthContext } from '../context/AuthContext';
@@ -73,11 +75,17 @@ const publicScreens = [
       title: 'Вхід',
     },
   },
+  {
+    name: 'Register',
+    component: RegisterScreen,
+    options: {
+      title: 'Реєстрація',
+    },
+  },
 ];
 
 /**
- * Protected screens (require authentication for premium features).
- * Note: Basic browsing is allowed, premium features require login.
+ * Protected screens (require authentication).
  */
 const appScreens = [
   {
@@ -134,18 +142,12 @@ const appScreens = [
       headerTintColor: colors.secondary,
     },
   },
+
   {
-    name: 'Login',
-    component: LoginScreen,
+    name: 'PriceCheck',
+    component: PriceCheckScreen,
     options: {
-      title: 'Вхід',
-    },
-  },
-  {
-    name: 'Register',
-    component: RegisterScreen,
-    options: {
-      title: 'Реєстрація',
+      title: 'Перевірка цін',
     },
   },
   {
@@ -183,13 +185,16 @@ export default function AppNavigator() {
     );
   }
 
+  const screens = isAuthenticated ? appScreens : publicScreens;
+  const initialRoute = isAuthenticated ? 'Home' : 'Login';
+
   return (
     <NavigationContainer theme={FiscusDarkTheme}>
       <Stack.Navigator
-        initialRouteName="Home"
+        initialRouteName={initialRoute}
         screenOptions={defaultScreenOptions}
       >
-        {appScreens.map((screen) => (
+        {screens.map((screen) => (
           <Stack.Screen
             key={screen.name}
             name={screen.name}

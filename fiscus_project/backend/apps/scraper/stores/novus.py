@@ -12,21 +12,21 @@ from .base import BaseScraper, register_scraper, clean_price
 logger = logging.getLogger("fiscus.scrapers.novus")
 
 
-@register_scraper("novus.online", "www.novus.online")
+@register_scraper("novus.ua", "www.novus.ua")
 class NovusScraper(BaseScraper):
     STORE_NAME = "Novus"
-    BASE_URL = "https://novus.online"
+    BASE_URL = "https://novus.ua"
 
     SEL_CARD = (
         ".product-card, "
-        ".catalog-product, "
         ".product-item, "
-        "[data-product]"
+        ".catalog-item, "
+        ".promotion-item"
     )
     SEL_NAME = (
-        ".product-card__name, "
         ".product-title, "
-        ".catalog-product__name"
+        ".product-card__title, "
+        ".name"
     )
     SEL_PRICE = (
         ".product-card__price, "

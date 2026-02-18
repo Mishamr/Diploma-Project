@@ -140,6 +140,14 @@ const DashboardScreen = ({ navigation }) => {
                             <Text style={styles.actionTitle}>Магазини</Text>
                             <Text style={styles.actionDesc}>Поблизу</Text>
                         </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('PriceCheck')}>
+                            <View style={[styles.actionIcon, { backgroundColor: theme.colors.surfaceLight }]}>
+                                <Ionicons name="pricetags-outline" size={24} color={theme.colors.primary} />
+                            </View>
+                            <Text style={styles.actionTitle}>Перевірка цін</Text>
+                            <Text style={styles.actionDesc}>Live пошук</Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
 
@@ -214,7 +222,7 @@ const DashboardScreen = ({ navigation }) => {
 
                 <View style={{ height: 80 }} />
             </ScrollView>
-        </Layout>
+        </Layout >
     );
 };
 
