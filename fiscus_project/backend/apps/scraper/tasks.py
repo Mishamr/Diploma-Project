@@ -8,15 +8,18 @@ Tasks are designed to be:
     - Idempotent (safe to retry)
     - Rate-limited to avoid blocking
     - Resilient to individual failures
+    - Logged for real-time monitoring via admin panel
 """
 import logging
 from typing import Optional
+from datetime import datetime
 
 from celery import shared_task
 from celery.exceptions import SoftTimeLimitExceeded
 from django.db import transaction
+from django.utils import timezone
 
-from apps.core.models import StoreItem
+from apps.core.models import StoreItem, TaskLog, Store
 from apps.scraper.stores import ScraperFactory
 from apps.scraper.services import ingest_scraped_data
 
@@ -24,6 +27,67 @@ logger = logging.getLogger(__name__)
 
 # Single factory instance — reads auto-discovered registry
 _factory = ScraperFactory()
+
+
+# ─── TASK LOGGING HELPERS ─────────────────────────────────────────────
+
+def create_task_log(task_id: str, task_name: str, store: Optional[Store] = None, items_total: int = 0) -> TaskLog:
+    """
+    Create or get a TaskLog for tracking task progress.
+    
+    Args:
+        task_id: Celery task ID
+        task_name: Human-readable task name
+        store: Optional Store object if store-specific
+        items_total: Total items to process
+    
+    Returns:
+        TaskLog instance
+    """
+    log, created = TaskLog.objects.get_or_create(
+        task_id=task_id,
+        defaults={
+            'task_name': task_name,
+            'store': store,
+            'items_total': items_total,
+            'status': 'started',
+            'started_at': timezone.now(),
+        }
+    )
+    
+    if not created and log.status == 'pending':
+        # Mark as started if was pending
+        log.status = 'started'
+        log.started_at = timezone.now()
+        log.items_total = items_total or log.items_total
+        log.save(update_fields=['status', 'started_at', 'items_total'])
+    
+    return log
+
+
+def update_task_log(task_id: str, **kwargs):
+    """
+    Update TaskLog fields.
+    
+    Commonly used fields:
+    - status: 'progress', 'completed', 'failed'
+    - items_processed: int
+    - items_failed: int
+    - message: str
+    - error_message: str
+    - completed_at: datetime
+    """
+    try:
+        log = TaskLog.objects.get(task_id=task_id)
+        
+        for field, value in kwargs.items():
+            if hasattr(log, field):
+                setattr(log, field, value)
+        
+        log.save()
+        logger.debug(f"Updated TaskLog {task_id}: {kwargs}")
+    except TaskLog.DoesNotExist:
+        logger.warning(f"TaskLog {task_id} not found for update")
 
 
 def _get_scraper_for_store_item(item: StoreItem):
@@ -55,7 +119,7 @@ def _get_scraper_for_store_item(item: StoreItem):
 
         logger.warning(
             "No scraper found for store '%s' (url=%s), skipping",
-            item.store.name, item.url,
+            f"{item.store.chain_name} ({item.store.address})", item.url,
         )
         return None
 
@@ -112,7 +176,7 @@ def scrape_store_item_task(self, store_item_id: int) -> str:
                     logger.info("Updated image for %s", item.product.name)
 
             message = (
-                f"Updated {item.product.name} @ {item.store.name}: "
+                f"Updated {item.product.name} @ {item.store.chain_name} ({item.store.address}): "
                 f"{item.price} UAH"
             )
             logger.info(message)
@@ -193,12 +257,15 @@ def scrape_all_items_periodic() -> str:
     return message
 
 
-@shared_task
-def scrape_single_store(store_id: int) -> str:
+@shared_task(bind=True)
+def scrape_single_store(self, store_id: int) -> str:
     """
     Queue scraping tasks for all items from a specific store.
 
-    Useful for manual refresh of a single store's prices.
+    Features:
+    - Tracks progress in TaskLog for real-time admin monitoring
+    - Throttles requests to avoid overload
+    - Logs success/failure per item
 
     Args:
         store_id: Database ID of the Store.
@@ -206,20 +273,78 @@ def scrape_single_store(store_id: int) -> str:
     Returns:
         Summary message.
     """
+    task_id = self.request.id
+    
+    try:
+        store = Store.objects.get(id=store_id)
+    except Store.DoesNotExist:
+        logger.error(f"Store {store_id} not found")
+        update_task_log(
+            task_id,
+            status='failed',
+            error_message=f"Store {store_id} not found",
+            completed_at=timezone.now()
+        )
+        return f"Store {store_id} not found"
+    
     items = StoreItem.objects.filter(
         store_id=store_id,
         url__isnull=False
     ).exclude(url="")
 
     count = items.count()
-
-    for idx, item in enumerate(items):
-        scrape_store_item_task.apply_async(
-            args=[item.id],
-            countdown=idx * 2
+    
+    # Create task log
+    task_log = create_task_log(
+        task_id=task_id,
+        task_name=f"Scrape {store.chain_name} ({store.address})",
+        store=store,
+        items_total=count
+    )
+    
+    if count == 0:
+        update_task_log(
+            task_id,
+            status='completed',
+            message=f"No items to scrape for {store.chain_name}",
+            items_processed=0,
+            completed_at=timezone.now()
         )
-
-    return f"Queued {count} items from store {store_id}"
+        return f"No items to scrape for store {store_id}"
+    
+    logger.info(f"Scraping {count} items from store {store.chain_name}")
+    
+    queued_count = 0
+    for idx, item in enumerate(items):
+        try:
+            scrape_store_item_task.apply_async(
+                args=[item.id],
+                countdown=idx * 2  # Throttle: 2 sec between each
+            )
+            queued_count += 1
+            
+            # Update progress every 10 items
+            if (idx + 1) % 10 == 0:
+                update_task_log(
+                    task_id,
+                    status='progress',
+                    items_processed=idx + 1,
+                    message=f"Queued {idx + 1}/{count} items"
+                )
+        except Exception as e:
+            logger.error(f"Failed to queue item {item.id}: {e}")
+            update_task_log(task_id, items_failed=task_log.items_failed + 1)
+    
+    # Mark as completed
+    update_task_log(
+        task_id,
+        status='completed',
+        items_processed=queued_count,
+        message=f"Successfully queued {queued_count}/{count} items",
+        completed_at=timezone.now()
+    )
+    
+    return f"Queued {queued_count}/{count} items from store {store_id}"
 
 
 @shared_task(

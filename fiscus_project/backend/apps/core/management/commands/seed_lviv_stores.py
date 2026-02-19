@@ -2,98 +2,114 @@ from django.core.management.base import BaseCommand
 from apps.core.models import Store
 
 class Command(BaseCommand):
-    help = 'Seeds the database with 10 Lviv retail chains'
+    help = 'Seeds the database with Lviv retail stores (multiple locations per chain)'
 
     def handle(self, *args, **kwargs):
-        # Coordinates around Lviv Opera House as base
-        # Stores slightly scattered for demo purposes
+        """
+        Creates Store objects for each physical location.
+        external_store_id is crucial for scrapers to know which store to select on the retailer's site.
+        """
         STORES_DATA = [
-            # 1. ATB - Base
+            # ━━━ АТБ ━━━
             {
-                "name": "АТБ",
+                "chain_name": "АТБ",
+                "address": "вул. Городоцька, 48",
+                "external_store_id": "atb-lviv-gorodocka",
                 "url_base": "https://atbmarket.com",
                 "latitude": 49.844,
                 "longitude": 24.025,
             },
-            # 2. Rukavychka - Local
             {
-                "name": "Рукавичка",
+                "chain_name": "АТБ",
+                "address": "вул. Сихів, 12",
+                "external_store_id": "atb-lviv-syhiv",
+                "url_base": "https://atbmarket.com",
+                "latitude": 49.841,
+                "longitude": 24.030,
+            },
+            {
+                "chain_name": "АТБ",
+                "address": "Пл. Ринок, 1",
+                "external_store_id": "atb-lviv-rynok",
+                "url_base": "https://atbmarket.com",
+                "latitude": 49.843,
+                "longitude": 24.019,
+            },
+            # ━━━ Сільпо ━━━
+            {
+                "chain_name": "Сільпо",
+                "address": "Ул. Під Дубом, 7б (Forum Lviv)",
+                "external_store_id": "silpo-lviv-forum", 
+                "url_base": "https://silpo.ua",
+                "latitude": 49.849,
+                "longitude": 24.022,
+            },
+            {
+                "chain_name": "Сільпо",
+                "address": "вул. Богдана Хмельницького, 32 (Sky Mall)",
+                "external_store_id": "silpo-lviv-skymall",
+                "url_base": "https://silpo.ua",
+                "latitude": 49.838,
+                "longitude": 24.027,
+            },
+            # ━━━ Auchan (Ашан) ━━━
+            {
+                "chain_name": "Auchan",
+                "address": "вул. Кульпарківська, 160 (Sokilnyky)",
+                "external_store_id": "auchan-lviv-sokil",
+                "url_base": "https://auchan.zakaz.ua",
+                "latitude": 49.773,
+                "longitude": 24.012,
+            },
+            # ━━━ Рукавичка ━━━
+            {
+                "chain_name": "Рукавичка",
+                "address": "вул. Лісна, 7",
+                "external_store_id": "rukavychka-lviv-lisna",
                 "url_base": "https://market.rukavychka.ua",
                 "latitude": 49.841,
                 "longitude": 24.030,
             },
-            # 3. Blyzenko - Near Home
+            # ━━━ SPAR ━━━
             {
-                "name": "Близенько",
-                "url_base": "https://online.blyzenko.ua",
-                "latitude": 49.838,
-                "longitude": 24.022,
-            },
-            # 4. Silpo - Premium
-            {
-                "name": "Сільпо",
-                "url_base": "https://shop.silpo.ua",
-                "latitude": 49.849,
-                "longitude": 24.022, # Forum Lviv
-            },
-            # 5. Auchan - Hypermarket
-            {
-                "name": "Ашан",
-                "url_base": "https://auchan.zakaz.ua",
-                "latitude": 49.773, # Auchan Sokilnyky (Far)
-                "longitude": 24.012,
-            },
-            # 6. SiMi - Snacks
-            {
-                "name": "Сімі",
-                "url_base": "https://sim23.ua",
-                "latitude": 49.842,
-                "longitude": 24.032,
-            },
-            # 7. SPAR - Franchise
-            {
-                "name": "SPAR",
+                "chain_name": "SPAR",
+                "address": "вул. Вільна, 25",
+                "external_store_id": "spar-lviv-vilna",
                 "url_base": "https://spar.ua",
                 "latitude": 49.835,
                 "longitude": 24.010,
             },
-            # 8. Arsen - Old School
+            # ━━━ Інші ━━━
             {
-                "name": "Арсен",
-                "url_base": "https://arsen.zakaz.ua",
-                "latitude": 49.824,
-                "longitude": 24.035,
+                "chain_name": "Близенько",
+                "address": "вул. Деміївська, 10",
+                "external_store_id": "blyzenko-lviv-demiivska",
+                "url_base": "https://online.blyzenko.ua",
+                "latitude": 49.838,
+                "longitude": 24.022,
             },
-            # 9. Metro - Wholesale
-            {
-                "name": "METRO",
-                "url_base": "https://metro.zakaz.ua",
-                "latitude": 49.850, # George Washington St (Far)
-                "longitude": 24.080,
-            },
-            # 10. Thrash! - Discounter
-            {
-                "name": "Thrash! Траш!",
-                "url_base": "https://thrash.ua",
-                "latitude": 49.846,
-                "longitude": 24.015,
-            }
         ]
 
-        self.stdout.write("Seeding Lviv stores...")
+        self.stdout.write("Seeding Lviv retail stores with external IDs...")
         
         for store_data in STORES_DATA:
             store, created = Store.objects.get_or_create(
-                name=store_data['name'],
+                chain_name=store_data['chain_name'],
+                address=store_data['address'],
                 defaults={
+                    'external_store_id': store_data['external_store_id'],
                     'url_base': store_data['url_base'],
                     'latitude': store_data['latitude'],
-                    'longitude': store_data['longitude']
+                    'longitude': store_data['longitude'],
+                    'is_active': True,
                 }
             )
             if created:
-                self.stdout.write(self.style.SUCCESS(f"Created: {store.name}"))
+                self.stdout.write(self.style.SUCCESS(
+                    f"✓ Created: {store.chain_name} @ {store.address} "
+                    f"(ID: {store.external_store_id})"
+                ))
             else:
-                self.stdout.write(f"Exists: {store.name}")
+                self.stdout.write(f"✗ Exists: {store.chain_name} @ {store.address}")
         
-        self.stdout.write(self.style.SUCCESS("Done!"))
+        self.stdout.write(self.style.SUCCESS("\n✓ Seeding complete!"))

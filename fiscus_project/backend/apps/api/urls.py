@@ -25,6 +25,12 @@ from apps.api.views import (
 )
 from apps.api.views_premium import SurvivalView, PriceHistoryView
 from apps.api.views_auth import RegisterView, UserProfileView
+from apps.api.monitoring import (
+    task_status,
+    task_list,
+    task_stats,
+    task_logs,
+)
 
 # Configure router for viewsets
 router = DefaultRouter()
@@ -62,11 +68,15 @@ urlpatterns = [
         name='premium_history'
     ),
     
-    # Store Promotions - NEW
+    # Store Promotions
     path('promotions/stores/', PromotionsStoreListView.as_view(), name='promotions_stores'),
     path('promotions/<str:store_id>/', StorePromotionsView.as_view(), name='store_promotions'),
     
     # Geo-location endpoints
     path('geo/', include('apps.geo.urls')),
-]
-
+    
+    # 🔧 ADMIN MONITORING ENDPOINTS (Real-time Task Tracking)
+    path('admin/tasks/', task_list, name='admin_task_list'),
+    path('admin/tasks/stats/', task_stats, name='admin_task_stats'),
+    path('admin/tasks/<str:task_id>/', task_status, name='admin_task_status'),
+    path('admin/stores/<int:store_id>/task-logs/', task_logs, name='admin_store_task_logs'),

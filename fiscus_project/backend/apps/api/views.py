@@ -296,8 +296,8 @@ class PromotionsViewSet(viewsets.ViewSet):
                     'originalPrice': round(avg_price, 2),
                     'promoPrice': float(item.price),
                     'discount': discount,
-                    'store': item.store.name,
-                    'storeName': item.store.name,
+                    'store': f"{item.store.chain_name} ({item.store.address})",
+                    'storeName': item.store.chain_name,
                     'validUntil': (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d'),
                     'category': item.product.category or 'General',
                 })

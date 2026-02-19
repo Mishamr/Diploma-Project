@@ -208,25 +208,122 @@ class BaseScraper(abc.ABC):
             self._random_delay(0.4, 0.8)
 
     @abc.abstractmethod
-    def scrape_category(self, url: str) -> List[Dict[str, object]]:
+    def set_store_context(self, driver, store_metadata: dict) -> None:
         """
-        Scrape a category page → list of dicts.
-
-        Each dict MUST have keys:
-            store_name, name, price, image_url, product_url
+        CRITICAL: Set the physical store location BEFORE scraping.
+        
+        Must be implemented by every subclass (ATB, Silpo, Auchan, etc).
+        Called at the start of scrape_category() to ensure products are fetched
+        for the correct physical location, not a default/random store.
+        
+        Args:
+            driver (selenium.WebDriver): Headless Chrome instance.
+            store_metadata (dict): Retailer-specific store identification:
+                {
+                    "external_store_id": "atb-lviv-gorodocka",  # ID from DB
+                    "chain_name": "АТБ",
+                    "address": "вул. Городоцька, 48",
+                    "latitude": 49.844,
+                    "longitude": 24.025,
+                }
+        
+        Implementation Guidelines:
+        ──────────────────────────
+        1. **Via Cookies** (stateless, fast):
+           driver.add_cookie({'name': 'storeId', 'value': '123', 'domain': 'atbmarket.com'})
+           
+        2. **Via LocalStorage** (for SPA):
+           driver.execute_script(f"localStorage.setItem('activeStore', '{store_id}');")
+           
+        3. **Via UI Click** (for dynamic dropdowns):
+           - Wait for store selector button
+           - Click it
+           - Type region/city name
+           - Select from dropdown
+           - Confirm
+           
+        4. **Via Search Params** (if retailer uses URLs):
+           driver.get(f"{self.BASE_URL}?store={store_id}&city=Lviv")
+        
+        IMPORTANT: After setting context, always call `driver.refresh()` or wait for new page load,
+        so that the next scrape_category() call gets fresh prices for THIS specific store.
+        
+        Raises:
+            Any exception during store selection should be logged as WARNING,
+            not ERROR, because the scraper can fall back to defaults.
+        
+        Example Implementation (ATB):
+        ───────────────────────────
+            try:
+                # Inject cookies for store selection
+                store_id = store_metadata['external_store_id']
+                driver.add_cookie({
+                    'name': 'selectedStore',
+                    'value': store_id,
+                    'domain': '.atbmarket.com'
+                })
+                driver.refresh()
+                time.sleep(2)
+            except Exception as e:
+                logger.warning(f"Store context failed: {e}. Using default.")
         """
 
-    def scrape_product(self, url: str) -> Dict[str, object]:
+    @abc.abstractmethod
+    def scrape_category(self, url: str, store_metadata: dict = None) -> List[Dict[str, object]]:
+        """
+        Scrape a category page and extract product listings for a specific store.
+
+        Args:
+            url (str): Category page URL from the retailer.
+            store_metadata (dict): Metadata for the store context:
+                {
+                    "external_store_id": "atb-lviv-gorodocka",
+                    "chain_name": "АТБ",
+                    "address": "вул. Городоцька, 48",
+                    "latitude": 49.844,
+                    "longitude": 24.025,
+                }
+
+        Returns:
+            List[Dict[str, object]]: Each dict MUST have keys:
+                - external_store_id: Retailer's store ID
+                - chain_name: Chain name (АТБ, Сільпо, etc)
+                - name: Product name
+                - price: Price in UAH (float)
+                - image_url: Product image URL
+                - product_url: Link to product page
+                - in_stock: Boolean, is product available
+        
+        Implementation flow:
+        ───────────────────
+        1. Initialize Selenium driver
+        2. Load the category URL
+        3. Call set_store_context(driver, store_metadata)
+        4. Wait for products to load (especially for React/SPA)
+        5. Extract product cards from HTML
+        6. For each card:
+           - Filter out unavailable products (out_of_stock, disabled, etc)
+           - Parse name, price, image, URL
+           - Append to results list
+        7. Return results
+        """
+
+    def scrape_product(self, url: str, store_metadata: dict = None) -> Dict[str, object]:
         """
         Scrape a single product page (used by Celery tasks).
 
         Default implementation scrapes the page as a category of one.
         Override in subclasses for better single-product parsing.
+        
+        Args:
+            url (str): Product page URL.
+            store_metadata (dict): Store identification metadata.
 
-        Returns dict with keys: status, price, image_url, name, error
+        Returns:
+            Dict with keys: status, price, image_url, name, error, external_store_id
         """
         try:
-            results = self.scrape_category(url)
+            results = self.scrape_category(url, store_metadata=store_metadata)
             if results:
                 product = results[0]
                 return {
@@ -234,6 +331,7 @@ class BaseScraper(abc.ABC):
                     "price": product.get("price"),
                     "image_url": product.get("image_url"),
                     "name": product.get("name"),
+                    "external_store_id": product.get("external_store_id"),
                 }
             return {"status": "error", "error": "No products found on page"}
         except Exception as exc:
