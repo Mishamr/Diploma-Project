@@ -1,0 +1,9 @@
+"""
+Store scrapers package.
+Auto-imports all scraper modules to trigger @register decorators.
+"""
+
+from .factory import ScraperFactory  # noqa: F401
+
+# Import scrapers to register them
+from . import atb  # noqa: F401
