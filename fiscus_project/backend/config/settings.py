@@ -1,23 +1,21 @@
 """
-Django settings for Fiscus project.
-
-This module contains all configuration for the Django application,
-including database, Celery, REST Framework, and JWT settings.
+Fiscus: Smart Price — Django settings.
 """
+
 import os
-import dj_database_url
 from pathlib import Path
-from datetime import timedelta
+from dotenv import load_dotenv
 
-# Build paths inside the project
+# ─── Paths ───
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_dotenv(BASE_DIR.parent / '.env')
 
-# Security settings
-SECRET_KEY = os.environ.get('SECRET_KEY', 'unsafe-secret-key-change-in-production')
-DEBUG = os.environ.get('DEBUG', '0') == '1'
-ALLOWED_HOSTS = ['*']  # Configure properly in production
+# ─── Security ───
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'dev-secret-key-change-me')
+DEBUG = os.getenv('DJANGO_DEBUG', 'True').lower() in ('true', '1', 'yes')
+ALLOWED_HOSTS = os.getenv('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
-# Application definition
+# ─── Application definition ───
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -27,18 +25,19 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     # Third-party
     'rest_framework',
-    'rest_framework_simplejwt.token_blacklist',
+    'rest_framework.authtoken',
     'corsheaders',
+    'django_celery_beat',
     # Local apps
-    'apps.core.apps.CoreConfig',
-    'apps.scraper',
+    'apps.core',
     'apps.api',
     'apps.geo',
+    'apps.scraper',
 ]
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -47,42 +46,8 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-DATABASES = {
-    'default': dj_database_url.config(
-        default=os.environ.get('DATABASE_URL'),
-        conn_max_age=600,
-        conn_health_checks=True,
-    )
-}
+ROOT_URLCONF = 'config.urls'
 
-if not DATABASES['default']:
-    DATABASES['default'] = {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
-
-# Celery configuration
-CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL', 'redis://localhost:6379/0')
-CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'redis://localhost:6379/0') # Added CELERY_RESULT_BACKEND
-CELERY_ACCEPT_CONTENT = ['json']
-CELERY_TASK_SERIALIZER = 'json'
-CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TIMEZONE = 'Europe/Kiev' # Added CELERY_TIMEZONE and updated spelling
-
-# Celery Beat Schedule
-from celery.schedules import crontab
-CELERY_BEAT_SCHEDULE = {
-    'scrape-every-morning': {
-        'task': 'apps.scraper.tasks.scrape_all_items_periodic',
-        'schedule': crontab(hour=6, minute=0),
-    },
-    'scrape-daily-23-50': { # Added new schedule entry
-        'task': 'apps.scraper.tasks.scrape_all_items_periodic',
-        'schedule': crontab(hour=23, minute=50),
-    },
-}
-
-# Templates
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
@@ -99,68 +64,75 @@ TEMPLATES = [
     },
 ]
 
-# CORS settings
-CORS_ALLOW_ALL_ORIGINS = True  # Configure properly in production
-
-# URL configuration
-ROOT_URLCONF = 'config.urls'
 WSGI_APPLICATION = 'config.wsgi.application'
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-# Internationalization
+# ─── Database (PostgreSQL) ───
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('POSTGRES_DB', 'fiscus'),
+        'USER': os.getenv('POSTGRES_USER', 'fiscus'),
+        'PASSWORD': os.getenv('POSTGRES_PASSWORD', 'fiscus_pass'),
+        'HOST': os.getenv('POSTGRES_HOST', 'db'),
+        'PORT': os.getenv('POSTGRES_PORT', '5432'),
+    }
+}
+
+# ─── Auth ───
+AUTH_PASSWORD_VALIDATORS = [
+    {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+    {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'},
+]
+
+# ─── i18n ───
 LANGUAGE_CODE = 'uk'
 TIME_ZONE = 'Europe/Kyiv'
 USE_I18N = True
 USE_TZ = True
 
-# Static files
-STATIC_URL = 'static/'
+# ─── Static ───
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
-# REST Framework Configuration
+DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# ─── REST Framework ───
 REST_FRAMEWORK = {
-    'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
-    ),
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticatedOrReadOnly',
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
-    'PAGE_SIZE': 20,
+    'PAGE_SIZE': 50,
 }
 
-# JWT Configuration
-SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
+# ─── CORS ───
+CORS_ALLOW_ALL_ORIGINS = DEBUG
+CORS_ALLOWED_ORIGINS = [
+    'http://localhost:8081',
+    'http://localhost:8082',
+    'http://localhost:19006',
+]
+
+# ─── Celery ───
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://redis:6379/0')
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://redis:6379/1')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Europe/Kyiv'
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+
+CELERY_TASK_ROUTES = {
+    'apps.scraper.tasks.scrape_category_light': {'queue': 'light'},
+    'apps.scraper.tasks.scrape_category_heavy': {'queue': 'heavy'},
+    'apps.scraper.tasks.scrape_all_stores_nightly': {'queue': 'light'},
 }
 
-# Logging configuration
-LOGGING = {
-    'version': 1,
-    'disable_existing_loggers': False,
-    'formatters': {
-        'verbose': {
-            'format': '{levelname} {asctime} {module} {message}',
-            'style': '{',
-        },
-    },
-    'handlers': {
-        'console': {
-            'class': 'logging.StreamHandler',
-            'formatter': 'verbose',
-        },
-    },
-    'root': {
-        'handlers': ['console'],
-        'level': 'INFO',
-    },
-    'loggers': {
-        'apps.scraper': {
-            'handlers': ['console'],
-            'level': 'DEBUG',
-            'propagate': False,
-        },
-    },
-}
+# ─── Playwright (headless browser for scraping) ───
+# Playwright Chromium is installed in Docker via: playwright install --with-deps chromium

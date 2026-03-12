@@ -1,504 +1,381 @@
 /**
- * @fileoverview Login Screen - Premium Design.
- * 
- * Beautiful authentication screen with gradient background,
- * glassmorphism effects, and animated elements.
- * 
- * @module screens/LoginScreen
+ * Login screen — Gemini-inspired purple/lavender with Google OAuth.
  */
 
-import React, { useState, useContext, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     View,
     Text,
     TextInput,
     TouchableOpacity,
     StyleSheet,
-    ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
-    TouchableWithoutFeedback,
-    Keyboard,
     Animated,
     Dimensions,
-    Alert,
+    ActivityIndicator,
+    ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Icon from '../components/Icon';
+import * as Google from 'expo-auth-session/providers/google';
+import * as WebBrowser from 'expo-web-browser';
+import { useAuth } from '../context/AuthContext';
+import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme';
 
-// Context & Theme
-import { AuthContext } from '../context/AuthContext';
-import { theme, colors, spacing } from '../theme';
+WebBrowser.maybeCompleteAuthSession();
+
+const GOOGLE_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID || 'YOUR_GOOGLE_WEB_CLIENT_ID.apps.googleusercontent.com';
+const GOOGLE_ANDROID_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID || 'YOUR_GOOGLE_ANDROID_CLIENT_ID.apps.googleusercontent.com';
+const GOOGLE_IOS_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID || 'YOUR_GOOGLE_IOS_CLIENT_ID.apps.googleusercontent.com';
 
 const { width, height } = Dimensions.get('window');
 
-/**
- * Floating animated circle background element
- */
-const FloatingCircle = ({ delay, size, position }) => {
-    const animation = useRef(new Animated.Value(0)).current;
+export default function LoginScreen() {
+    const { login, register, loginWithGoogle } = useAuth();
+    const [isRegister, setIsRegister] = useState(false);
+    const [username, setUsername] = useState('');
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
+    const [error, setError] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [googleLoading, setGoogleLoading] = useState(false);
 
-    useEffect(() => {
-        const animate = () => {
-            Animated.loop(
-                Animated.sequence([
-                    Animated.timing(animation, {
-                        toValue: 1,
-                        duration: 3000 + delay,
-                        useNativeDriver: true,
-                    }),
-                    Animated.timing(animation, {
-                        toValue: 0,
-                        duration: 3000 + delay,
-                        useNativeDriver: true,
-                    }),
-                ])
-            ).start();
-        };
-        setTimeout(animate, delay);
-    }, []);
+    const fadeAnim = useRef(new Animated.Value(1)).current;
+    const usernameRef = useRef(null);
+    const emailRef = useRef(null);
+    const passwordRef = useRef(null);
 
-    const translateY = animation.interpolate({
-        inputRange: [0, 1],
-        outputRange: [0, 20],
+    // Google OAuth
+    const [request, response, promptAsync] = Google.useAuthRequest({
+        webClientId: GOOGLE_CLIENT_ID,
+        androidClientId: GOOGLE_ANDROID_CLIENT_ID,
+        iosClientId: GOOGLE_IOS_CLIENT_ID,
+        scopes: ['openid', 'profile', 'email'],
     });
 
-    return (
-        <Animated.View
-            style={[
-                styles.floatingCircle,
-                {
-                    width: size,
-                    height: size,
-                    borderRadius: size / 2,
-                    ...position,
-                    transform: [{ translateY }],
-                },
-            ]}
-        />
-    );
-};
-
-/**
- * Login Screen Component.
- */
-export default function LoginScreen({ navigation }) {
-    const { login, isLoading } = useContext(AuthContext);
-    const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
-    const [showPassword, setShowPassword] = useState(false);
-    const [focusedInput, setFocusedInput] = useState(null);
-
-    // Animations
-    const logoScale = useRef(new Animated.Value(0)).current;
-    const formOpacity = useRef(new Animated.Value(0)).current;
-    const formTranslate = useRef(new Animated.Value(50)).current;
-
     useEffect(() => {
-        // Entry animations
-        Animated.sequence([
-            Animated.spring(logoScale, {
-                toValue: 1,
-                tension: 50,
-                friction: 7,
-                useNativeDriver: true,
-            }),
-            Animated.parallel([
-                Animated.timing(formOpacity, {
-                    toValue: 1,
-                    duration: 500,
-                    useNativeDriver: true,
-                }),
-                Animated.timing(formTranslate, {
-                    toValue: 0,
-                    duration: 500,
-                    useNativeDriver: true,
-                }),
-            ]),
-        ]).start();
-    }, []);
-
-    const handleLogin = async () => {
-        Keyboard.dismiss();
-        const success = await login(username, password);
-        if (success) {
-            if (navigation.canGoBack()) {
-                navigation.goBack();
-            } else {
-                navigation.navigate('Home');
-            }
+        if (response?.type === 'success') {
+            handleGoogleAuth(response.authentication);
+        } else if (response?.type === 'error') {
+            console.error('Google Auth Error:', response.error);
+            setError('Помилка Google авторизації');
         }
+    }, [response]);
+
+    const handleGoogleAuth = async (authentication) => {
+        console.log('Google Auth Object:', authentication);
+        if (!authentication?.accessToken) {
+            setError('Не вдалося отримати токен доступу');
+            return;
+        }
+        setGoogleLoading(true);
+        setError('');
+        const result = await loginWithGoogle(authentication.accessToken);
+        if (!result.success) {
+            setError(result.error || 'Помилка Google авторизації');
+        }
+        setGoogleLoading(false);
     };
 
-    /**
-     * Handle social login button press.
-     * Shows OAuth coming soon message or demo login.
-     * @param {string} provider - OAuth provider name (Google, Apple, Facebook)
-     */
-    const handleSocialLogin = (provider) => {
-        Alert.alert(
-            `${provider} авторизація`,
-            `Вхід через ${provider} буде доступний найближчим часом.\n\nДля демо використовуйте:\nЛогін: admin\nПароль: admin`,
-            [
-                { text: 'OK', style: 'default' },
-                {
-                    text: 'Демо вхід',
-                    onPress: async () => {
-                        setUsername('admin');
-                        setPassword('admin');
-                        const success = await login('admin', 'admin');
-                        if (success) {
-                            navigation.navigate('Home');
-                        }
-                    }
-                },
-            ]
-        );
+    const handleSubmit = async () => {
+        if (!username || !password) {
+            setError('Заповніть всі поля');
+            return;
+        }
+        if (isRegister && !email) {
+            setError('Введіть email');
+            return;
+        }
+
+        setLoading(true);
+        setError('');
+
+        const result = isRegister
+            ? await register(username, email, password)
+            : await login(username, password);
+
+        if (!result.success) {
+            setError(result.error || 'Помилка авторизації');
+        }
+        setLoading(false);
+    };
+
+    const toggleMode = () => {
+        Animated.sequence([
+            Animated.timing(fadeAnim, { toValue: 0, duration: 150, useNativeDriver: false }),
+            Animated.timing(fadeAnim, { toValue: 1, duration: 150, useNativeDriver: false }),
+        ]).start();
+        setIsRegister(!isRegister);
+        setError('');
     };
 
     return (
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-            <LinearGradient
-                colors={['#1a0a2e', '#16213e', '#0f3460', '#1a0a2e']}
-                locations={[0, 0.3, 0.6, 1]}
-                style={styles.container}
+        <LinearGradient
+            colors={['#0f172a', '#1e293b', '#0f172a']}
+            style={styles.container}
+            start={{ x: 0.2, y: 0 }}
+            end={{ x: 0.8, y: 1 }}
+        >
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={styles.inner}
             >
-                {/* Animated Background Elements */}
-                <FloatingCircle
-                    delay={0}
-                    size={200}
-                    position={{ top: -50, right: -50 }}
-                />
-                <FloatingCircle
-                    delay={500}
-                    size={150}
-                    position={{ top: height * 0.3, left: -75 }}
-                />
-                <FloatingCircle
-                    delay={1000}
-                    size={100}
-                    position={{ bottom: 100, right: 30 }}
-                />
-
-                <KeyboardAvoidingView
-                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                    style={styles.keyboardView}
+                <ScrollView
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
                 >
-                    {/* Logo Section */}
-                    <Animated.View
-                        style={[
-                            styles.logoContainer,
-                            { transform: [{ scale: logoScale }] }
-                        ]}
-                    >
+                    {/* Logo */}
+                    <View style={styles.logoContainer}>
                         <LinearGradient
-                            colors={['#9D4EDD', '#7B2CBF', '#5A189A']}
+                            colors={[COLORS.primaryLight, COLORS.accent]}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 1 }}
                             style={styles.logoGradient}
                         >
-                            <Ionicons name="wallet" size={48} color="#fff" />
+                            <Icon name="bar-chart" size={48} color={COLORS.white} />
                         </LinearGradient>
-                        <Text style={styles.logoText}>FISCUS</Text>
-                        <Text style={styles.tagline}>Розумний помічник покупок</Text>
-                    </Animated.View>
+                        <Text style={styles.logoText}>Fiscus</Text>
+                        <Text style={styles.tagline}>Smart Price · Розумні ціни</Text>
+                    </View>
 
-                    {/* Login Form */}
-                    <Animated.View
-                        style={[
-                            styles.formContainer,
-                            {
-                                opacity: formOpacity,
-                                transform: [{ translateY: formTranslate }],
-                            }
-                        ]}
-                    >
-                        <View style={styles.glassCard}>
-                            {/* Username Input */}
-                            <View style={[
-                                styles.inputContainer,
-                                focusedInput === 'username' && styles.inputFocused
-                            ]}>
-                                <Ionicons
-                                    name="person-outline"
-                                    size={20}
-                                    color={focusedInput === 'username' ? colors.primary : colors.textMuted}
-                                />
+                    {/* Form */}
+                    <Animated.View style={[styles.formContainer, { opacity: fadeAnim }]}>
+                        {/* Google */}
+                        {!GOOGLE_CLIENT_ID.includes('YOUR_GOOGLE_WEB_CLIENT_ID') && (
+                            <>
+                                <TouchableOpacity
+                                    style={[styles.googleBtn, googleLoading && styles.submitBtnDisabled]}
+                                    onPress={() => promptAsync()}
+                                    disabled={!request || googleLoading}
+                                >
+                                    <View style={styles.googleBtnInner}>
+                                        {googleLoading ? (
+                                            <ActivityIndicator size="small" color="#4285F4" />
+                                        ) : (
+                                            <View style={styles.googleIconWrap}>
+                                                <Text style={styles.googleG}>G</Text>
+                                            </View>
+                                        )}
+                                        <Text style={styles.googleBtnText}>
+                                            {googleLoading ? 'Зачекайте...' : 'Увійти через Google'}
+                                        </Text>
+                                    </View>
+                                </TouchableOpacity>
+
+                                {/* Divider */}
+                                <View style={styles.divider}>
+                                    <View style={styles.dividerLine} />
+                                    <Text style={styles.dividerText}>або</Text>
+                                    <View style={styles.dividerLine} />
+                                </View>
+                            </>
+                        )}
+
+                        {/* Fields */}
+                        <View style={styles.inputContainer}>
+                            <View style={styles.inputIcon}><Icon name="person-outline" size={20} color={COLORS.textMuted} /></View>
+                            <TextInput
+                                ref={usernameRef}
+                                style={styles.input}
+                                placeholder="Ім'я користувача"
+                                placeholderTextColor={COLORS.textDark}
+                                value={username}
+                                onChangeText={setUsername}
+                                autoCapitalize="none"
+                                returnKeyType="next"
+                                onSubmitEditing={() => isRegister ? emailRef.current?.focus() : passwordRef.current?.focus()}
+                            />
+                        </View>
+
+                        {isRegister && (
+                            <View style={styles.inputContainer}>
+                                <View style={styles.inputIcon}><Icon name="mail-outline" size={20} color={COLORS.textMuted} /></View>
                                 <TextInput
+                                    ref={emailRef}
                                     style={styles.input}
-                                    placeholder="Ім'я користувача"
-                                    placeholderTextColor={colors.textMuted}
-                                    value={username}
-                                    onChangeText={setUsername}
+                                    placeholder="Email"
+                                    placeholderTextColor={COLORS.textDark}
+                                    value={email}
+                                    onChangeText={setEmail}
+                                    keyboardType="email-address"
                                     autoCapitalize="none"
-                                    autoCorrect={false}
-                                    onFocus={() => setFocusedInput('username')}
-                                    onBlur={() => setFocusedInput(null)}
+                                    returnKeyType="next"
+                                    onSubmitEditing={() => passwordRef.current?.focus()}
                                 />
                             </View>
+                        )}
 
-                            {/* Password Input */}
-                            <View style={[
-                                styles.inputContainer,
-                                focusedInput === 'password' && styles.inputFocused
-                            ]}>
-                                <Ionicons
-                                    name="lock-closed-outline"
-                                    size={20}
-                                    color={focusedInput === 'password' ? colors.primary : colors.textMuted}
-                                />
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Пароль"
-                                    placeholderTextColor={colors.textMuted}
-                                    value={password}
-                                    onChangeText={setPassword}
-                                    secureTextEntry={!showPassword}
-                                    onFocus={() => setFocusedInput('password')}
-                                    onBlur={() => setFocusedInput(null)}
-                                />
-                                <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                                    <Ionicons
-                                        name={showPassword ? "eye-outline" : "eye-off-outline"}
-                                        size={20}
-                                        color={colors.textMuted}
-                                    />
-                                </TouchableOpacity>
+                        <View style={styles.inputContainer}>
+                            <View style={styles.inputIcon}><Icon name="lock-closed-outline" size={20} color={COLORS.textMuted} /></View>
+                            <TextInput
+                                ref={passwordRef}
+                                style={styles.input}
+                                placeholder="Пароль"
+                                placeholderTextColor={COLORS.textDark}
+                                value={password}
+                                onChangeText={setPassword}
+                                secureTextEntry
+                                returnKeyType="done"
+                                onSubmitEditing={handleSubmit}
+                            />
+                        </View>
+
+                        {error ? (
+                            <View style={styles.errorContainer}>
+                                <Icon name="alert-circle-outline" size={16} color={COLORS.error} />
+                                <Text style={styles.errorText}>{error}</Text>
                             </View>
+                        ) : null}
 
-                            {/* Forgot Password */}
-                            <TouchableOpacity style={styles.forgotButton}>
-                                <Text style={styles.forgotText}>Забули пароль?</Text>
-                            </TouchableOpacity>
-
-                            {/* Login Button */}
-                            <TouchableOpacity
-                                style={styles.loginButton}
-                                onPress={handleLogin}
-                                disabled={isLoading || !username || !password}
-                                activeOpacity={0.8}
+                        <TouchableOpacity
+                            style={[styles.submitBtn, loading && styles.submitBtnDisabled]}
+                            onPress={handleSubmit}
+                            disabled={loading}
+                        >
+                            <LinearGradient
+                                colors={[COLORS.primary, COLORS.primaryDark]}
+                                style={styles.submitGradient}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
                             >
-                                <LinearGradient
-                                    colors={['#9D4EDD', '#7B2CBF']}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                    style={styles.buttonGradient}
-                                >
-                                    {isLoading ? (
-                                        <ActivityIndicator color="#fff" />
-                                    ) : (
-                                        <>
-                                            <Text style={styles.buttonText}>Увійти</Text>
-                                            <Ionicons name="arrow-forward" size={20} color="#fff" />
-                                        </>
-                                    )}
-                                </LinearGradient>
-                            </TouchableOpacity>
+                                <Text style={styles.submitText}>
+                                    {loading ? 'Зачекайте...' : isRegister ? 'Зареєструватися' : 'Увійти'}
+                                </Text>
+                            </LinearGradient>
+                        </TouchableOpacity>
 
-                            {/* Divider */}
-                            <View style={styles.divider}>
-                                <View style={styles.dividerLine} />
-                                <Text style={styles.dividerText}>або</Text>
-                                <View style={styles.dividerLine} />
-                            </View>
-
-                            {/* Social Buttons */}
-                            <View style={styles.socialButtons}>
-                                <TouchableOpacity
-                                    style={styles.socialButton}
-                                    onPress={() => handleSocialLogin('Google')}
-                                >
-                                    <Ionicons name="logo-google" size={24} color="#EA4335" />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.socialButton}
-                                    onPress={() => handleSocialLogin('Apple')}
-                                >
-                                    <Ionicons name="logo-apple" size={24} color="#fff" />
-                                </TouchableOpacity>
-                                <TouchableOpacity
-                                    style={styles.socialButton}
-                                    onPress={() => handleSocialLogin('Facebook')}
-                                >
-                                    <Ionicons name="logo-facebook" size={24} color="#1877F2" />
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-
-                        {/* Demo Hint */}
-                        <View style={styles.hintContainer}>
-                            <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} />
-                            <Text style={styles.hintText}>
-                                Демо: admin / admin
+                        <TouchableOpacity onPress={toggleMode} style={styles.toggleBtn}>
+                            <Text style={styles.toggleText}>
+                                {isRegister ? 'Вже є акаунт? Увійти' : 'Немає акаунту? Зареєструватися'}
                             </Text>
-                        </View>
-
-                        {/* Register Link */}
-                        <View style={styles.registerContainer}>
-                            <Text style={styles.registerText}>Немає акаунту? </Text>
-                            <TouchableOpacity onPress={() => Alert.alert(
-                                'Реєстрація',
-                                'Функція реєстрації буде доступна найближчим часом.\n\nДля тестування використовуйте:\nЛогін: admin\nПароль: admin',
-                                [{ text: 'OK' }]
-                            )}>
-                                <Text style={styles.registerLink}>Зареєструватися</Text>
-                            </TouchableOpacity>
-                        </View>
+                        </TouchableOpacity>
                     </Animated.View>
-                </KeyboardAvoidingView>
-            </LinearGradient>
-        </TouchableWithoutFeedback>
+                </ScrollView>
+            </KeyboardAvoidingView>
+        </LinearGradient>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
+    container: { flex: 1 },
+    inner: {
         flex: 1,
     },
-    keyboardView: {
-        flex: 1,
+    scrollContent: {
+        flexGrow: 1,
         justifyContent: 'center',
-        paddingHorizontal: spacing.l,
-    },
-    floatingCircle: {
-        position: 'absolute',
-        backgroundColor: 'rgba(157, 78, 221, 0.15)',
+        paddingHorizontal: SPACING.lg,
+        paddingVertical: SPACING.xxl,
     },
     logoContainer: {
         alignItems: 'center',
-        marginBottom: spacing.xl,
+        marginBottom: SPACING.xxl,
     },
     logoGradient: {
-        width: 100,
-        height: 100,
-        borderRadius: 30,
+        width: 96,
+        height: 96,
+        borderRadius: RADIUS.xl,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: spacing.m,
-        shadowColor: '#9D4EDD',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.5,
-        shadowRadius: 20,
-        elevation: 15,
+        marginBottom: SPACING.md,
     },
     logoText: {
         fontSize: 36,
         fontWeight: '800',
         color: '#fff',
-        letterSpacing: 4,
+        letterSpacing: 2,
     },
     tagline: {
-        fontSize: 14,
-        color: 'rgba(255, 255, 255, 0.6)',
-        marginTop: spacing.xs,
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: 12,
+        marginTop: SPACING.xs,
+        letterSpacing: 1,
     },
     formContainer: {
-        width: '100%',
-    },
-    glassCard: {
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        borderRadius: 24,
-        padding: spacing.l,
+        backgroundColor: 'rgba(12, 10, 29, 0.6)',
+        borderRadius: RADIUS.lg,
+        padding: SPACING.lg,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderColor: 'rgba(255,255,255,0.08)',
     },
-    inputContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(0, 0, 0, 0.3)',
-        borderRadius: 12,
-        paddingHorizontal: spacing.m,
-        marginBottom: spacing.m,
-        borderWidth: 1,
-        borderColor: 'transparent',
-    },
-    inputFocused: {
-        borderColor: colors.primary,
-        backgroundColor: 'rgba(157, 78, 221, 0.1)',
-    },
-    input: {
-        flex: 1,
-        color: '#fff',
-        fontSize: 16,
-        paddingVertical: spacing.m,
-        marginLeft: spacing.s,
-    },
-    forgotButton: {
-        alignSelf: 'flex-end',
-        marginBottom: spacing.l,
-    },
-    forgotText: {
-        color: colors.primary,
-        fontSize: 13,
-    },
-    loginButton: {
-        borderRadius: 12,
+    googleBtn: {
+        borderRadius: RADIUS.md,
         overflow: 'hidden',
-        marginBottom: spacing.l,
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.12)',
+        backgroundColor: 'rgba(255,255,255,0.05)',
     },
-    buttonGradient: {
+    googleBtnInner: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: spacing.m + 2,
-        gap: spacing.s,
+        paddingVertical: 14,
+        gap: SPACING.sm,
     },
-    buttonText: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '700',
+    googleIconWrap: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: '#fff',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
+    googleG: { fontSize: 16, fontWeight: '800', color: '#4285F4' },
+    googleBtnText: { fontSize: 15, fontWeight: '600', color: '#fff' },
     divider: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: spacing.l,
+        marginVertical: SPACING.md,
     },
-    dividerLine: {
-        flex: 1,
-        height: 1,
-        backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    },
-    dividerText: {
-        color: 'rgba(255, 255, 255, 0.5)',
-        paddingHorizontal: spacing.m,
-        fontSize: 12,
-    },
-    socialButtons: {
+    dividerLine: { flex: 1, height: 1, backgroundColor: 'rgba(255,255,255,0.08)' },
+    dividerText: { color: COLORS.textMuted, fontSize: 13, marginHorizontal: SPACING.md },
+    inputContainer: {
         flexDirection: 'row',
-        justifyContent: 'center',
-        gap: spacing.m,
-    },
-    socialButton: {
-        width: 56,
-        height: 56,
-        borderRadius: 16,
-        backgroundColor: 'rgba(255, 255, 255, 0.08)',
-        justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: COLORS.bgInput,
+        borderRadius: RADIUS.md,
+        marginBottom: SPACING.md,
         borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.1)',
+        borderColor: COLORS.borderLight,
     },
-    hintContainer: {
+    inputIcon: { paddingHorizontal: SPACING.md },
+    input: {
+        flex: 1,
+        height: 52,
+        color: COLORS.textPrimary,
+        fontSize: 16,
+        paddingRight: SPACING.md,
+    },
+    errorContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
-        marginTop: spacing.l,
-        gap: spacing.xs,
+        marginBottom: SPACING.md,
+        paddingHorizontal: SPACING.sm,
     },
-    hintText: {
-        color: colors.textMuted,
-        fontSize: 12,
+    errorText: { color: COLORS.error, fontSize: 13, marginLeft: SPACING.xs },
+    submitBtn: {
+        borderRadius: RADIUS.md,
+        overflow: 'hidden',
+        marginTop: SPACING.sm,
     },
-    registerContainer: {
-        flexDirection: 'row',
-        justifyContent: 'center',
-        marginTop: spacing.m,
+    submitBtnDisabled: { opacity: 0.6 },
+    submitGradient: {
+        paddingVertical: 16,
+        alignItems: 'center',
     },
-    registerText: {
-        color: 'rgba(255, 255, 255, 0.6)',
-        fontSize: 14,
+    submitText: {
+        ...FONTS.bold,
+        fontSize: 17,
+        color: '#fff',
     },
-    registerLink: {
-        color: colors.primary,
-        fontSize: 14,
-        fontWeight: '600',
+    toggleBtn: {
+        marginTop: SPACING.lg,
+        alignItems: 'center',
+    },
+    toggleText: {
+        color: COLORS.primarySoft,
+        fontSize: 13,
     },
 });

@@ -1,58 +1,74 @@
 services:
   db:
     image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: fiscus
+      POSTGRES_USER: fiscus
+      POSTGRES_PASSWORD: fiscus_pass
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_DB=fiscus
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=postgres
+    ports:
+      - "5432:5432"
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
-      interval: 5s
+      test: [ "CMD-SHELL", "pg_isready -U fiscus" ]
+      interval: 10s
       timeout: 5s
       retries: 5
 
   redis:
     image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   web:
     build: ./backend
-    command: python manage.py runserver 0.0.0.0:8000
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py seed_stores &&
+             gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3 --reload"
     volumes:
       - ./backend:/app
     ports:
       - "8000:8000"
+    env_file:
+      - .env
     depends_on:
       db:
         condition: service_healthy
       redis:
-        condition: service_started
-    environment:
-      - DEBUG=1
-      - SECRET_KEY=django-insecure-change-me-now
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - DATABASE_URL=postgres://postgres:postgres@db:5432/fiscus
+        condition: service_healthy
 
   celery_worker:
     build: ./backend
-    command: celery -A config worker --loglevel=info
+    command: celery -A config worker -Q scraper --concurrency=4 --loglevel=info
     volumes:
       - ./backend:/app
+    env_file:
+      - .env
+    mem_limit: 512m
     depends_on:
-      - db
-      - redis
-      - selenium
-    environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - DATABASE_URL=postgres://postgres:postgres@db:5432/fiscus
-      - SELENIUM_REMOTE_URL=http://selenium:4444/wd/hub
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
-  selenium:
-    image: selenium/standalone-chrome:latest
-    shm_size: "2gb"
-    ports:
-      - "4444:4444"
+  celery_beat:
+    build: ./backend
+    command: celery -A config beat --loglevel=info
+    volumes:
+      - ./backend:/app
+    env_file:
+      - .env
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   postgres_data:

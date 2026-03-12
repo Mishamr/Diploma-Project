@@ -1,320 +1,187 @@
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import {
-    View,
-    Text,
-    FlatList,
-    StyleSheet,
-    TouchableOpacity,
-    RefreshControl,
-    Dimensions,
-    ActivityIndicator,
-    Image,
-} from 'react-native';
-import { LineChart } from 'react-native-chart-kit';
-import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-
-import { theme, colors, spacing, typography } from '../theme';
-import { Layout } from '../components/Layout';
-import { Card } from '../components/Card';
-import apiClient from '../api/client'; // Import apiClient directly for now
-
-const { width } = Dimensions.get('window');
-
-/**
- * Promotions Screen Component.
+﻿/**
+ * Promotions screen вЂ” sales with product images and names.
  */
+
+import React, { useEffect, useState } from 'react';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Image } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import Icon from '../components/Icon';
+import { usePromotionStore } from '../stores';
+import { useCart } from '../context/CartContext';
+import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
+import { CHAINS, getChainName, getChainColor } from '../constants/stores';
+import StoreChip from '../components/StoreChip';
+
 export default function PromotionsScreen() {
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-    const [stores, setStores] = useState([]);
-    const [selectedStore, setSelectedStore] = useState('atb');
-    const [promotions, setPromotions] = useState([]);
-    const [error, setError] = useState(null);
+    const { promotions, loading, fetchPromotions } = usePromotionStore();
+    const { addItem } = useCart();
+    const [selectedChain, setSelectedChain] = useState(null);
 
-    // Fetch stores list
-    const fetchStores = async () => {
-        try {
-            const response = await apiClient.get('/promotions/stores/');
-            if (response.data && response.data.stores) {
-                setStores(response.data.stores);
-                // Select first store if none selected
-                if (!selectedStore && response.data.stores.length > 0) {
-                    setSelectedStore(response.data.stores[0].id);
-                }
-            }
-        } catch (err) {
-            console.error('Failed to fetch stores:', err);
-            // Fallback stores if API fails
-            setStores([
-                { id: 'atb', name: 'АТБ' },
-                { id: 'silpo', name: 'Сільпо' },
-            ]);
-        }
-    };
+    useEffect(() => { fetchPromotions(30, selectedChain); }, [selectedChain]);
 
-    // Fetch promotions for selected store
-    const fetchPromotions = async (storeId) => {
-        setLoading(true);
-        setError(null);
-        try {
-            const response = await apiClient.get(`/promotions/${storeId}/`);
-            if (response.data && response.data.products) {
-                setPromotions(response.data.products);
-            } else {
-                setPromotions([]);
-            }
-        } catch (err) {
-            console.error('Failed to fetch promotions:', err);
-            setError('Не вдалося завантажити акції');
-            setPromotions([]);
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    };
+    const allChains = [{ slug: null, name: 'РЈСЃС–', icon: 'рџ”Ґ' }, ...CHAINS];
 
-    // Initial load
-    useEffect(() => {
-        fetchStores();
-    }, []);
+    const renderPromo = ({ item }) => {
+        const discount = item.old_price ? Math.round((1 - item.price / item.old_price) * 100) : 0;
+        const productName = item.product_name || item.name || item.title || 'РўРѕРІР°СЂ';
+        const imageUrl = item.image_url;
 
-    // Load promotions when store changes
-    useEffect(() => {
-        if (selectedStore) {
-            fetchPromotions(selectedStore);
-        }
-    }, [selectedStore]);
-
-    const onRefresh = useCallback(() => {
-        setRefreshing(true);
-        fetchStores();
-        if (selectedStore) {
-            fetchPromotions(selectedStore);
-        }
-    }, [selectedStore]);
-
-    const renderStoreItem = ({ item }) => (
-        <TouchableOpacity
-            style={[
-                styles.storeChip,
-                selectedStore === item.id && styles.storeChipSelected
-            ]}
-            onPress={() => setSelectedStore(item.id)}
-        >
-            <Text style={[
-                styles.storeChipText,
-                selectedStore === item.id && styles.storeChipTextSelected
-            ]}>
-                {item.name}
-            </Text>
-        </TouchableOpacity>
-    );
-
-    const renderPromotionItem = ({ item }) => (
-        <Card style={styles.promoCard}>
-            <View style={styles.promoImageContainer}>
-                {item.image_url ? (
-                    <Image
-                        source={{ uri: item.image_url }}
-                        style={styles.promoImagePlaceholder}
-                        resizeMode="contain"
-                    />
+        return (
+            <View style={styles.card}>
+                {/* Product image */}
+                {imageUrl ? (
+                    <Image source={{ uri: imageUrl }} style={styles.image} resizeMode="cover" />
                 ) : (
-                    <LinearGradient
-                        colors={['#f0f0f0', '#e0e0e0']}
-                        style={styles.promoImagePlaceholder}
-                    >
-                        <Ionicons name="image-outline" size={32} color="#ccc" />
-                    </LinearGradient>
+                    <View style={[styles.image, styles.imagePlaceholder]}>
+                        <Icon name="cube-outline" size={24} color={COLORS.textMuted} />
+                    </View>
                 )}
-                <View style={styles.discountBadge}>
-                    <Text style={styles.discountText}>-{item.discount}%</Text>
+
+                {/* Info */}
+                <View style={styles.info}>
+                    <Text style={styles.name} numberOfLines={2}>{productName}</Text>
+                    <View style={styles.chainRow}>
+                        <View style={[styles.dot, { backgroundColor: getChainColor(item.chain_slug) }]} />
+                        <Text style={styles.chainLabel}>{item.chain || getChainName(item.chain_slug)}</Text>
+                    </View>
+                    <View style={styles.priceRow}>
+                        <Text style={styles.price}>{item.price?.toFixed(2)} в‚ґ</Text>
+                        {item.old_price && <Text style={styles.oldPrice}>{item.old_price.toFixed(2)} в‚ґ</Text>}
+                    </View>
                 </View>
-            </View>
 
-            <View style={styles.promoContent}>
-                <Text style={styles.promoTitle} numberOfLines={2}>{item.name}</Text>
-                <Text style={styles.promoCategory}>{item.category}</Text>
-
-                <View style={styles.priceRow}>
-                    <Text style={styles.currentPrice}>₴{item.price.toFixed(2)}</Text>
-                    {item.old_price && (
-                        <Text style={styles.oldPrice}>₴{item.old_price.toFixed(2)}</Text>
+                {/* Right side: discount + cart */}
+                <View style={styles.actions}>
+                    {discount > 0 && (
+                        <LinearGradient colors={COLORS.gradientPromo} style={styles.badge}>
+                            <Text style={styles.badgeText}>-{discount}%</Text>
+                        </LinearGradient>
                     )}
+                    <TouchableOpacity
+                        style={styles.addBtn}
+                        onPress={() => addItem({ productId: item.id, name: productName, price: item.price })}
+                    >
+                        <Icon name="cart-outline" size={22} color={COLORS.accent} />
+                    </TouchableOpacity>
                 </View>
             </View>
-        </Card>
-    );
+        );
+    };
 
     return (
-        <Layout title="Акції та Знижки">
-            <View style={styles.container}>
-                {/* Stores Selector */}
-                <View style={styles.storesContainer}>
-                    <Text style={styles.sectionTitle}>Магазини</Text>
-                    <FlatList
-                        data={stores}
-                        renderItem={renderStoreItem}
-                        keyExtractor={item => item.id}
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        contentContainerStyle={styles.storesList}
-                    />
-                </View>
+        <View style={styles.container}>
+            <LinearGradient colors={['#fbbf24', '#d97706', '#92400e']} style={styles.header}>
+                <Icon name="pricetag" size={24} color="#fff" />
+                <Text style={styles.headerTitle}>РўРѕРї Р°РєС†С–С—</Text>
+            </LinearGradient>
 
-                {/* Promotions Grid */}
-                {loading ? (
-                    <View style={styles.centerContainer}>
-                        <ActivityIndicator size="large" color={theme.colors.primary} />
-                        <Text style={styles.loadingText}>Завантаження акцій...</Text>
-                    </View>
-                ) : (
-                    <FlatList
-                        data={promotions}
-                        renderItem={renderPromotionItem}
-                        keyExtractor={item => item.id}
-                        numColumns={2}
-                        columnWrapperStyle={styles.promoRow}
-                        contentContainerStyle={styles.promoList}
-                        refreshControl={
-                            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-                        }
-                        ListEmptyComponent={
-                            <View style={styles.emptyContainer}>
-                                <Text style={styles.emptyText}>Немає акцій для цього магазину</Text>
-                            </View>
-                        }
+            <FlatList
+                horizontal
+                data={allChains}
+                renderItem={({ item: c }) => (
+                    <StoreChip
+                        chain={c}
+                        selected={selectedChain === c.slug}
+                        onPress={() => setSelectedChain(c.slug)}
                     />
                 )}
-            </View>
-        </Layout>
+                keyExtractor={c => c.slug || 'all'}
+                showsHorizontalScrollIndicator={false}
+                style={styles.chips}
+                contentContainerStyle={{ paddingHorizontal: SPACING.md, alignItems: 'center' }}
+            />
+
+            {loading ? <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 40 }} /> : (
+                <FlatList
+                    data={promotions}
+                    renderItem={renderPromo}
+                    keyExtractor={(i, idx) => `${i.id || idx}`}
+                    contentContainerStyle={{ paddingHorizontal: SPACING.md, paddingBottom: 40 }}
+                    ListEmptyComponent={<Text style={styles.empty}>РђРєС†С–С— РЅРµ Р·РЅР°Р№РґРµРЅРѕ</Text>}
+                />
+            )}
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: theme.colors.background,
+    container: { flex: 1, backgroundColor: COLORS.bgPrimary },
+    header: {
+        paddingVertical: SPACING.md,
+        alignItems: 'center',
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: SPACING.sm,
     },
-    storesContainer: {
-        paddingVertical: theme.spacing.m,
-        backgroundColor: theme.colors.surface,
-        borderBottomWidth: 1,
-        borderBottomColor: theme.colors.border,
+    headerTitle: { ...FONTS.subtitle, color: '#fff' },
+    chips: {
+        marginVertical: SPACING.sm,
+        maxHeight: 40,
     },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: 'bold',
-        marginLeft: theme.spacing.m,
-        marginBottom: theme.spacing.s,
-        color: theme.colors.text,
-    },
-    storesList: {
-        paddingHorizontal: theme.spacing.m,
-        gap: 10,
-    },
-    storeChip: {
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 20,
-        backgroundColor: theme.colors.background,
+    card: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: COLORS.glass,
         borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderColor: COLORS.glassBorder,
+        borderRadius: RADIUS.md,
+        padding: SPACING.sm,
+        marginBottom: SPACING.sm,
     },
-    storeChipSelected: {
-        backgroundColor: theme.colors.primary,
-        borderColor: theme.colors.primary,
+    image: {
+        width: 56,
+        height: 56,
+        borderRadius: RADIUS.sm,
     },
-    storeChipText: {
-        color: theme.colors.text,
-        fontWeight: '500',
-    },
-    storeChipTextSelected: {
-        color: theme.colors.textInverse,
-        fontWeight: 'bold',
-    },
-    centerContainer: {
-        flex: 1,
+    imagePlaceholder: {
+        backgroundColor: COLORS.glassLight,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    loadingText: {
-        marginTop: 10,
-        color: theme.colors.textMuted,
-    },
-    promoList: {
-        padding: theme.spacing.m,
-    },
-    promoRow: {
-        justifyContent: 'space-between',
-    },
-    promoCard: {
-        width: (width - theme.spacing.m * 3) / 2,
-        marginBottom: theme.spacing.m,
-        padding: 0,
-        overflow: 'hidden',
-    },
-    promoImageContainer: {
-        height: 120,
-        position: 'relative',
-    },
-    promoImagePlaceholder: {
+    info: {
         flex: 1,
-        justifyContent: 'center',
+        marginLeft: SPACING.sm,
+    },
+    name: {
+        ...FONTS.medium,
+        fontSize: 13,
+        lineHeight: 18,
+    },
+    chainRow: {
+        flexDirection: 'row',
         alignItems: 'center',
+        marginTop: 3,
     },
-    discountBadge: {
-        position: 'absolute',
-        top: 8,
-        right: 8,
-        backgroundColor: theme.colors.danger,
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 12,
-    },
-    discountText: {
-        color: '#fff',
-        fontWeight: 'bold',
-        fontSize: 12,
-    },
-    promoContent: {
-        padding: theme.spacing.s,
-    },
-    promoTitle: {
-        fontSize: 14,
-        fontWeight: '500',
-        color: theme.colors.text,
-        height: 40,
-        marginBottom: 4,
-    },
-    promoCategory: {
-        fontSize: 12,
-        color: theme.colors.textMuted,
-        marginBottom: 8,
-    },
+    dot: { width: 6, height: 6, borderRadius: 3, marginRight: 4 },
+    chainLabel: { ...FONTS.caption, fontSize: 11 },
     priceRow: {
         flexDirection: 'row',
         alignItems: 'center',
+        marginTop: 3,
         gap: 6,
     },
-    currentPrice: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        color: theme.colors.danger,
+    price: { ...FONTS.price, fontSize: 15 },
+    oldPrice: { ...FONTS.priceOld, fontSize: 12 },
+    actions: {
+        alignItems: 'flex-end',
+        justifyContent: 'space-between',
+        marginLeft: SPACING.xs,
+        gap: SPACING.xs,
     },
-    oldPrice: {
-        fontSize: 12,
-        color: theme.colors.textMuted,
-        textDecorationLine: 'line-through',
+    badge: {
+        borderRadius: RADIUS.sm,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
     },
-    emptyContainer: {
-        padding: 40,
+    badgeText: { color: '#fff', fontWeight: '800', fontSize: 11 },
+    addBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: 'rgba(16, 185, 129, 0.12)',
+        justifyContent: 'center',
         alignItems: 'center',
     },
-    emptyText: {
-        color: theme.colors.textMuted,
-        textAlign: 'center',
-    },
+    empty: { ...FONTS.caption, textAlign: 'center', marginTop: 60, fontSize: 15 },
 });
 

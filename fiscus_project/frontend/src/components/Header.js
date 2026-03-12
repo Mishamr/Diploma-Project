@@ -1,87 +1,39 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { theme } from '../theme';
+﻿import React from 'react';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import Icon from './Icon';
+import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme';
+import { useAuth } from '../context/AuthContext';
 
-export const Header = ({ onMenuPress, title }) => {
-    const handleNotifications = () => {
-        Alert.alert(
-            '🔔 Сповіщення',
-            'У вас немає нових сповіщень.\n\nФункція сповіщень буде доступна у наступному оновленні.',
-            [{ text: 'OK' }]
-        );
-    };
-
+export default function Header({ title, showBack, onBack, rightIcon, onRight }) {
+    const { user } = useAuth();
     return (
-        <View style={styles.container}>
-            <TouchableOpacity style={styles.button} onPress={onMenuPress}>
-                <Ionicons name="menu" size={24} color={theme.colors.primary} />
-            </TouchableOpacity>
-
-            <View style={styles.titleContainer}>
-                <View style={styles.iconContainer}>
-                    <Ionicons name="receipt" size={14} color={theme.colors.background} />
-                </View>
-                <Text style={styles.title}>Fiscus</Text>
+        <LinearGradient colors={[COLORS.bgSecondary, COLORS.bgPrimary]} style={styles.container}>
+            <View style={styles.row}>
+                {showBack ? (
+                    <TouchableOpacity onPress={onBack} style={styles.iconBtn}>
+                        <Icon name="arrow-back" size={22} color={COLORS.textPrimary} />
+                    </TouchableOpacity>
+                ) : (
+                    <View style={styles.iconBtn} />
+                )}
+                <Text style={styles.title}>{title}</Text>
+                {rightIcon ? (
+                    <TouchableOpacity onPress={onRight} style={styles.iconBtn}>
+                        <Icon name={rightIcon} size={22} color={COLORS.textPrimary} />
+                    </TouchableOpacity>
+                ) : (
+                    <View style={styles.iconBtn} />
+                )}
             </View>
-
-            <TouchableOpacity style={styles.button} onPress={handleNotifications}>
-                <Ionicons name="notifications-outline" size={24} color={theme.colors.primary} />
-                <View style={styles.badge} />
-            </TouchableOpacity>
-        </View>
+        </LinearGradient>
     );
-};
+}
 
 const styles = StyleSheet.create({
-    container: {
-        height: 60,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: theme.spacing.m,
-        backgroundColor: theme.colors.surface,
-        borderBottomWidth: 1,
-        borderBottomColor: theme.colors.border,
-        zIndex: theme.zIndex.base + 1,
-    },
-    button: {
-        width: 40,
-        height: 40,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: theme.borderRadius.m,
-    },
-    titleContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    iconContainer: {
-        width: 24,
-        height: 24,
-        borderRadius: 12,
-        backgroundColor: theme.colors.primary, // Using gradient approximation if single color
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    title: {
-        color: theme.colors.primary,
-        fontSize: theme.fontSize.subtitle,
-        fontWeight: theme.fontWeight.bold,
-        letterSpacing: 0.5,
-    },
-    badge: {
-        position: 'absolute',
-        top: 8,
-        right: 8,
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: theme.colors.danger,
-        borderWidth: 1,
-        borderColor: theme.colors.surface,
-    },
+    container: { paddingTop: 48, paddingBottom: SPACING.md, paddingHorizontal: SPACING.lg },
+    row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    title: { ...FONTS.subtitle, fontSize: 18, flex: 1, textAlign: 'center' },
+    iconBtn: { width: 36, alignItems: 'center' },
 });
 
-export default Header;

@@ -1,208 +1,198 @@
 /**
- * @fileoverview Main navigation configuration for Fiscus app.
- * 
- * Uses React Navigation with Stack Navigator.
- * Implements dark fintech theme consistent with app design.
- * Includes protected route logic based on authentication status.
- * 
- * @module navigation/AppNavigator
+ * App navigator — auth flow + bottom tabs with Gemini theme.
  */
 
-import React, { useContext } from 'react';
-import { ActivityIndicator, View } from 'react-native';
-import { NavigationContainer, DarkTheme } from '@react-navigation/native';
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import Icon from '../components/Icon';
+import { useAuth } from '../context/AuthContext';
+import { COLORS } from '../constants/theme';
+import ROUTES from '../constants/routes';
 
 // Screens
-import ProductFeed from '../screens/ProductFeed';
-import ShoppingListScreen from '../screens/ShoppingListScreen';
-import CartScreen from '../screens/CartScreen';
-import MapScreen from '../screens/MapScreen';
-import ComparisonScreen from '../screens/ComparisonScreen';
 import LoginScreen from '../screens/LoginScreen';
-import RegisterScreen from '../screens/RegisterScreen';
-import SurvivalScreen from '../screens/SurvivalScreen';
+import DashboardScreen from '../screens/DashboardScreen';
+import ProductFeedScreen from '../screens/ProductFeedScreen';
+import ShoppingListScreen from '../screens/ShoppingListScreen';
+import AnalyticsScreen from '../screens/AnalyticsScreen';
+import AIAssistantScreen from '../screens/AIAssistantScreen';
+import MapScreen from '../screens/MapScreen';
 import PromotionsScreen from '../screens/PromotionsScreen';
-import PriceCheckScreen from '../screens/PriceCheckScreen';
+import SurvivalScreen from '../screens/SurvivalScreen';
+import InflationScreen from '../screens/InflationScreen';
+import SettingsScreen from '../screens/SettingsScreen';
+import CompareCartScreen from '../screens/CompareCartScreen';
 
-
-// Context & Theme
-import { AuthContext } from '../context/AuthContext';
-import { theme, colors } from '../theme';
-
-/**
- * Stack navigator instance.
- */
 const Stack = createStackNavigator();
+const Tab = createBottomTabNavigator();
 
-/**
- * Custom dark theme extending React Navigation's DarkTheme.
- * Integrates with Fiscus design system.
- */
-const FiscusDarkTheme = {
-  ...DarkTheme,
-  dark: true,
-  colors: {
-    ...DarkTheme.colors,
-    primary: colors.primary,
-    background: colors.background,
-    card: colors.surface,
-    text: colors.text,
-    border: colors.border,
-    notification: colors.danger,
-  },
-};
-
-/**
- * Default screen options for all screens.
- * Provides consistent header styling.
- */
-const defaultScreenOptions = {
-  headerShown: false,
-  cardStyle: {
-    backgroundColor: colors.background,
-  },
-};
-
-/**
- * Public screens (accessible without authentication).
- */
-const publicScreens = [
-  {
-    name: 'Login',
-    component: LoginScreen,
-    options: {
-      title: 'Вхід',
-    },
-  },
-  {
-    name: 'Register',
-    component: RegisterScreen,
-    options: {
-      title: 'Реєстрація',
-    },
-  },
-];
-
-/**
- * Protected screens (require authentication).
- */
-const appScreens = [
-  {
-    name: 'Home',
-    component: ProductFeed,
-    options: {
-      title: 'FISCUS',
-      headerTitleStyle: {
-        fontWeight: '900',
-        fontSize: 20,
-        letterSpacing: 2,
-      },
-    },
-  },
-  {
-    name: 'Promotions',
-    component: PromotionsScreen,
-    options: {
-      title: '🔥 Акції',
-      headerStyle: {
-        backgroundColor: colors.dangerLight || colors.surface,
-      },
-    },
-  },
-  {
-    name: 'ShoppingList',
-    component: ShoppingListScreen,
-    options: {
-      title: 'Список покупок',
-    },
-  },
-  {
-    name: 'Cart',
-    component: CartScreen,
-    options: {
-      title: 'Мій Кошик',
-    },
-  },
-  {
-    name: 'Map',
-    component: MapScreen,
-    options: {
-      title: 'Карта магазинів',
-    },
-  },
-  {
-    name: 'Comparison',
-    component: ComparisonScreen,
-    options: {
-      title: 'Smart Comparison',
-      headerStyle: {
-        backgroundColor: colors.secondaryLight,
-      },
-      headerTintColor: colors.secondary,
-    },
-  },
-
-  {
-    name: 'PriceCheck',
-    component: PriceCheckScreen,
-    options: {
-      title: 'Перевірка цін',
-    },
-  },
-  {
-    name: 'Survival',
-    component: SurvivalScreen,
-    options: {
-      title: 'Survival Mode',
-      headerStyle: {
-        backgroundColor: colors.secondaryLight,
-      },
-      headerTintColor: colors.secondary,
-    },
-  },
-];
-
-/**
- * Main App Navigator component.
- * Provides navigation structure for the entire app.
- * Uses AuthContext to determine initial route and show loading state.
- * 
- * @returns {JSX.Element} Navigation container with stack navigator.
- * 
- * @example
- * <AppNavigator />
- */
-export default function AppNavigator() {
-  const { isInitializing, isAuthenticated } = useContext(AuthContext);
-
-  // Show loading screen while checking auth status
-  if (isInitializing) {
+function MainTabs() {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
+        <Tab.Navigator
+            screenOptions={({ route }) => ({
+                tabBarIcon: ({ focused, color, size }) => {
+                    let iconName;
+                    switch (route.name) {
+                        case ROUTES.DASHBOARD:
+                            iconName = focused ? 'home' : 'home-outline';
+                            break;
+                        case ROUTES.PRODUCT_FEED:
+                            iconName = focused ? 'search' : 'search-outline';
+                            break;
+                        case ROUTES.SHOPPING_LIST:
+                            iconName = focused ? 'calculator' : 'calculator-outline';
+                            break;
+                        case ROUTES.ANALYTICS:
+                            iconName = focused ? 'bar-chart' : 'bar-chart-outline';
+                            break;
+                        case ROUTES.AI_ASSISTANT:
+                            iconName = focused ? 'sparkles' : 'sparkles-outline';
+                            break;
+                        default:
+                            iconName = 'ellipse';
+                    }
+                    return <Icon name={iconName} size={size} color={color} />;
+                },
+                tabBarActiveTintColor: COLORS.primary,
+                tabBarInactiveTintColor: COLORS.textMuted,
+                tabBarStyle: {
+                    backgroundColor: COLORS.bgSecondary,
+                    borderTopColor: COLORS.glassBorder,
+                    borderTopWidth: 1,
+                    paddingBottom: 4,
+                    height: 60,
+                },
+                tabBarLabelStyle: {
+                    fontSize: 10,
+                    fontWeight: '600',
+                },
+                headerStyle: {
+                    backgroundColor: COLORS.bgPrimary,
+                    elevation: 0,
+                    boxShadow: 'none',
+                },
+                headerTintColor: COLORS.textPrimary,
+                headerTitleStyle: {
+                    fontWeight: '700',
+                },
+            })}
+        >
+            <Tab.Screen
+                name={ROUTES.DASHBOARD}
+                component={DashboardScreen}
+                options={{ title: 'Головна', headerShown: false }}
+            />
+            <Tab.Screen
+                name={ROUTES.PRODUCT_FEED}
+                component={ProductFeedScreen}
+                options={{ title: 'Продукти' }}
+            />
+            <Tab.Screen
+                name={ROUTES.SHOPPING_LIST}
+                component={ShoppingListScreen}
+                options={{ title: 'Кошик' }}
+            />
+            <Tab.Screen
+                name={ROUTES.ANALYTICS}
+                component={AnalyticsScreen}
+                options={{ title: 'Аналітика', headerShown: false }}
+            />
+            <Tab.Screen
+                name={ROUTES.AI_ASSISTANT}
+                component={AIAssistantScreen}
+                options={{ title: 'AI', headerShown: false }}
+            />
+        </Tab.Navigator>
     );
-  }
+}
 
-  const screens = isAuthenticated ? appScreens : publicScreens;
-  const initialRoute = isAuthenticated ? 'Home' : 'Login';
+export default function AppNavigator() {
+    const { isAuthenticated, loading } = useAuth();
 
-  return (
-    <NavigationContainer theme={FiscusDarkTheme}>
-      <Stack.Navigator
-        initialRouteName={initialRoute}
-        screenOptions={defaultScreenOptions}
-      >
-        {screens.map((screen) => (
-          <Stack.Screen
-            key={screen.name}
-            name={screen.name}
-            component={screen.component}
-            options={screen.options}
-          />
-        ))}
-      </Stack.Navigator>
-    </NavigationContainer>
-  );
+    if (loading) return null;
+
+    return (
+        <NavigationContainer
+            theme={{
+                dark: true,
+                colors: {
+                    primary: COLORS.primary,
+                    background: COLORS.bgPrimary,
+                    card: COLORS.bgSecondary,
+                    text: COLORS.textPrimary,
+                    border: COLORS.glassBorder,
+                    notification: COLORS.error,
+                },
+            }}
+        >
+            <Stack.Navigator screenOptions={{ headerShown: false }}>
+                {!isAuthenticated ? (
+                    <Stack.Screen name={ROUTES.LOGIN} component={LoginScreen} />
+                ) : (
+                    <>
+                        <Stack.Screen name={ROUTES.MAIN} component={MainTabs} />
+                        <Stack.Screen
+                            name={ROUTES.SETTINGS}
+                            component={SettingsScreen}
+                            options={{
+                                headerShown: false,
+                            }}
+                        />
+                        <Stack.Screen
+                            name={ROUTES.MAP}
+                            component={MapScreen}
+                            options={{
+                                headerShown: true,
+                                title: 'Карта магазинів',
+                                headerStyle: { backgroundColor: COLORS.bgPrimary },
+                                headerTintColor: COLORS.textPrimary,
+                            }}
+                        />
+                        <Stack.Screen
+                            name={ROUTES.PROMOTIONS}
+                            component={PromotionsScreen}
+                            options={{
+                                headerShown: true,
+                                title: 'Акції',
+                                headerStyle: { backgroundColor: COLORS.bgPrimary },
+                                headerTintColor: COLORS.textPrimary,
+                            }}
+                        />
+                        <Stack.Screen
+                            name={ROUTES.SURVIVAL}
+                            component={SurvivalScreen}
+                            options={{
+                                headerShown: true,
+                                title: 'Режим виживання',
+                                headerStyle: { backgroundColor: COLORS.bgPrimary },
+                                headerTintColor: COLORS.textPrimary,
+                            }}
+                        />
+                        <Stack.Screen
+                            name={ROUTES.INFLATION}
+                            component={InflationScreen}
+                            options={{
+                                headerShown: true,
+                                title: 'Аналітика цін',
+                                headerStyle: { backgroundColor: COLORS.bgPrimary },
+                                headerTintColor: COLORS.textPrimary,
+                            }}
+                        />
+                        <Stack.Screen
+                            name={ROUTES.COMPARE_CART}
+                            component={CompareCartScreen}
+                            options={{
+                                headerShown: true,
+                                title: 'Порівняння кошика',
+                                headerStyle: { backgroundColor: COLORS.bgPrimary },
+                                headerTintColor: COLORS.textPrimary,
+                            }}
+                        />
+                    </>
+                )}
+            </Stack.Navigator>
+        </NavigationContainer>
+    );
 }

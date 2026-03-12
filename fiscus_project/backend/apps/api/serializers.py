@@ -1,162 +1,176 @@
 """
-DRF Serializers for Fiscus API.
-
-This module defines serializers for converting model instances
-to JSON and validating incoming data.
+API serializers for Fiscus models.
 """
+
 from rest_framework import serializers
-from apps.core.models import Store, Product, StoreItem, ShoppingList, ShoppingListItem
+from django.contrib.auth.models import User
+from apps.core.models import (
+    Chain, Store, Category, Product, StoreItem,
+    Price, ShoppingList, ShoppingListItem, UserProfile,
+)
+
+
+class ChainSerializer(serializers.ModelSerializer):
+    store_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Chain
+        fields = ['id', 'name', 'slug', 'logo_url', 'website', 'scraper_type', 'is_active', 'store_count']
+
+    def get_store_count(self, obj):
+        return obj.stores.count()
 
 
 class StoreSerializer(serializers.ModelSerializer):
-    """
-    Serializer for Store model.
-    
-    Fields:
-        id: Unique identifier
-        name: Store name (e.g., "ATB", "Silpo")
-        latitude: Geographic latitude
-        longitude: Geographic longitude
-    """
+    chain_name = serializers.CharField(source='chain.name', read_only=True)
+    chain_slug = serializers.CharField(source='chain.slug', read_only=True)
+
     class Meta:
         model = Store
-        fields = ['id', 'name', 'latitude', 'longitude']
+        fields = [
+            'id', 'name', 'address', 'city',
+            'latitude', 'longitude', 'chain_name', 'chain_slug',
+        ]
+
+
+class CategorySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Category
+        fields = ['id', 'name', 'slug', 'parent']
 
 
 class ProductSerializer(serializers.ModelSerializer):
-    """
-    Serializer for Product model (list view).
-    
-    Basic product information without pricing details.
-    """
+    category_name = serializers.CharField(source='category.name', read_only=True, default='')
+    latest_price = serializers.SerializerMethodField()
+    latest_old_price = serializers.SerializerMethodField()
+
     class Meta:
         model = Product
-        fields = ['id', 'name', 'category', 'image_url']
+        fields = [
+            'id', 'name', 'brand', 'weight', 'weight_kg',
+            'unit', 'category', 'category_name', 'image_url',
+            'latest_price', 'latest_old_price',
+        ]
+
+    def get_latest_price(self, obj):
+        qs = Price.objects.filter(store_item__product=obj)
+        request = self.context.get('request')
+        if request and request.query_params.get('chain'):
+            qs = qs.filter(store_item__store__chain__slug=request.query_params.get('chain'))
+            
+        latest_price = qs.order_by('-recorded_at').first()
+        return float(latest_price.price) if latest_price else None
+
+    def get_latest_old_price(self, obj):
+        qs = Price.objects.filter(store_item__product=obj)
+        request = self.context.get('request')
+        if request and request.query_params.get('chain'):
+            qs = qs.filter(store_item__store__chain__slug=request.query_params.get('chain'))
+            
+        latest_price = qs.order_by('-recorded_at').first()
+        return float(latest_price.old_price) if latest_price and latest_price.old_price else None
+
+
+class PriceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Price
+        fields = ['id', 'price', 'old_price', 'is_promo', 'promo_label', 'discount_pct', 'recorded_at']
 
 
 class StoreItemSerializer(serializers.ModelSerializer):
-    """
-    Serializer for StoreItem (product-store price relation).
-    
-    Includes store name and current price information.
-    """
-    store_name = serializers.CharField(source='store.name', read_only=True)
+    product = ProductSerializer(read_only=True)
+    store = StoreSerializer(read_only=True)
+    latest_price = serializers.SerializerMethodField()
 
     class Meta:
         model = StoreItem
-        fields = ['id', 'store_id', 'store_name', 'price', 'updated_at', 'url']
+        fields = ['id', 'product', 'store', 'in_stock', 'latest_price', 'last_scraped']
 
-
-class ProductDetailSerializer(ProductSerializer):
-    """
-    Serializer for Product model (detail view).
-    
-    Extends ProductSerializer with cheapest available option
-    across all stores.
-    """
-    cheapest_option = serializers.SerializerMethodField()
-
-    class Meta(ProductSerializer.Meta):
-        fields = ProductSerializer.Meta.fields + ['cheapest_option']
-
-    def get_cheapest_option(self, obj) -> dict | None:
-        """
-        Find the cheapest store item for this product.
-        
-        Args:
-            obj: Product instance.
-        
-        Returns:
-            Serialized StoreItem or None if no items exist.
-        """
-        item = obj.store_items.order_by('price').first()
-        if item:
-            return StoreItemSerializer(item).data
+    def get_latest_price(self, obj):
+        price = obj.prices.order_by('-recorded_at').first()
+        if price:
+            return PriceSerializer(price).data
         return None
+
+
+class ProductWithPricesSerializer(serializers.ModelSerializer):
+    """Product with latest prices across all stores."""
+    category_name = serializers.CharField(source='category.name', read_only=True, default='')
+    prices = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Product
+        fields = [
+            'id', 'name', 'brand', 'weight', 'weight_kg',
+            'unit', 'category_name', 'image_url', 'prices',
+        ]
+
+    def get_prices(self, obj):
+        store_items = obj.store_items.filter(in_stock=True).select_related('store__chain')
+        result = []
+        for si in store_items:
+            latest = si.prices.order_by('-recorded_at').first()
+            if latest:
+                result.append({
+                    'chain': si.store.chain.name,
+                    'chain_slug': si.store.chain.slug,
+                    'store': si.store.name,
+                    'price': float(latest.price),
+                    'old_price': float(latest.old_price) if latest.old_price else None,
+                    'is_promo': latest.is_promo,
+                    'recorded_at': latest.recorded_at.isoformat(),
+                })
+        return sorted(result, key=lambda x: x['price'])
 
 
 class ShoppingListItemSerializer(serializers.ModelSerializer):
-    """
-    Serializer for items in a shopping list.
-    
-    Includes nested product data for display and
-    write-only product_id for creation.
-    """
-    product = ProductSerializer(read_only=True)
-    product_id = serializers.IntegerField(write_only=True)
+    product_name = serializers.CharField(source='product.name', read_only=True, default='')
 
     class Meta:
         model = ShoppingListItem
-        fields = ['id', 'product', 'product_id', 'quantity', 'is_checked']
-
-    def validate_quantity(self, value: int) -> int:
-        """Ensure quantity is positive."""
-        if value <= 0:
-            raise serializers.ValidationError("Quantity must be positive")
-        return value
+        fields = ['id', 'product', 'product_name', 'custom_name', 'quantity', 'is_checked']
 
 
 class ShoppingListSerializer(serializers.ModelSerializer):
-    """
-    Serializer for ShoppingList model.
-    
-    Includes nested list items with product details and
-    computed price comparison fields.
-    """
-    items = ShoppingListItemSerializer(
-        source='shoppinglistitem_set',
-        many=True,
-        read_only=True
-    )
+    items = ShoppingListItemSerializer(many=True, read_only=True)
     total_items = serializers.SerializerMethodField()
-    best_store = serializers.SerializerMethodField()
-    total_price = serializers.SerializerMethodField()
-    progress = serializers.SerializerMethodField()
 
     class Meta:
         model = ShoppingList
-        fields = ['id', 'name', 'created_at', 'items', 'total_items', 
-                  'best_store', 'total_price', 'progress']
+        fields = ['id', 'name', 'items', 'total_items', 'created_at', 'updated_at']
 
-    def get_total_items(self, obj) -> int:
-        """Calculate total number of items in the list."""
-        return obj.shoppinglistitem_set.count()
-    
-    def get_best_store(self, obj) -> str | None:
-        """Find the store with lowest total price for all items."""
-        store_totals = {}
-        
-        for list_item in obj.shoppinglistitem_set.all():
-            for store_item in list_item.product.store_items.all():
-                store_name = store_item.store.name
-                price = float(store_item.price) * list_item.quantity
-                store_totals[store_name] = store_totals.get(store_name, 0) + price
-        
-        if store_totals:
-            return min(store_totals, key=store_totals.get)
-        return None
-    
-    def get_total_price(self, obj) -> str | None:
-        """Calculate total price at cheapest store for each item."""
-        total = 0
-        
-        for list_item in obj.shoppinglistitem_set.all():
-            cheapest = list_item.product.store_items.order_by('price').first()
-            if cheapest:
-                total += float(cheapest.price) * list_item.quantity
-        
-        if total > 0:
-            return f"{total:.2f}"
-        return None
-    
-    def get_progress(self, obj) -> int:
-        """Calculate percentage of items found in stores."""
-        total = obj.shoppinglistitem_set.count()
-        if total == 0:
-            return 0
-        
-        found = sum(
-            1 for item in obj.shoppinglistitem_set.all() 
-            if item.product.store_items.exists()
+    def get_total_items(self, obj):
+        return obj.items.count()
+
+
+class UserProfileSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', read_only=True)
+
+    class Meta:
+        model = UserProfile
+        fields = ['username', 'city', 'family_size', 'monthly_budget', 'preferred_chains']
+
+
+class RegisterSerializer(serializers.Serializer):
+    username = serializers.CharField(max_length=150)
+    email = serializers.EmailField()
+    password = serializers.CharField(write_only=True, min_length=6)
+
+    def validate_username(self, value):
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("Користувач з таким ім'ям вже існує")
+        return value
+
+    def create(self, validated_data):
+        user = User.objects.create_user(
+            username=validated_data['username'],
+            email=validated_data['email'],
+            password=validated_data['password'],
         )
-        return int((found / total) * 100)
+        UserProfile.objects.create(user=user)
+        return user
+
+
+class LoginSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    password = serializers.CharField()

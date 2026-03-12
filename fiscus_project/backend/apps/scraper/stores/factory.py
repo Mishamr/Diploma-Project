@@ -1,66 +1,79 @@
 """
-Scraper Factory — auto-discovers registered scrapers.
+Scraper Factory — фабричний метод для створення скреперів.
 
-Scrapers register themselves via ``@register_scraper(...)`` in base.py.
-This factory simply reads the registry — **no manual imports needed**.
-
-Adding a new store
-------------------
-1. Create ``stores/newstore.py``
-2. Use ``@register_scraper("newstore.com")``
-3. Done — factory picks it up automatically via auto-discovery.
+Використання:
+    scraper = ScraperFactory.get_scraper('atb')
+    scraper.scrape()
+    scraper.close()
 """
 
-from __future__ import annotations
-
 import logging
-from typing import List
-from urllib.parse import urlparse
+from typing import Any
 
-from .base import BaseScraper, get_registry
+logger = logging.getLogger(__name__)
 
-logger = logging.getLogger("fiscus.scrapers.factory")
+# Реєстр: chain_slug → клас скрепера
+_REGISTRY: dict[str, Any] = {}
+
+
+def register(slug: str):
+    """Декоратор для реєстрації скрепера у фабриці."""
+    def decorator(cls):
+        _REGISTRY[slug] = cls
+        logger.debug(f"Зареєстровано скрепер: {slug} → {cls.__name__}")
+        return cls
+    return decorator
 
 
 class ScraperFactory:
     """
-    Domain → Scraper resolver.
+    Фабрика скреперів — створює потрібний скрепер за назвою магазину.
 
-    Uses the global registry populated by ``@register_scraper`` decorators.
-    No hardcoded domain map — fully driven by what's been imported.
-
-    >>> factory = ScraperFactory()
-    >>> scraper = factory.get_scraper("https://www.atbmarket.com/catalog/123")
-    >>> type(scraper).__name__
-    'ATBScraper'
+    Нові магазини додаються автоматично через декоратор @register('slug').
     """
 
-    def get_scraper(self, url: str, *, headless: bool = True) -> BaseScraper:
-        """Return the appropriate scraper for *url*."""
-        domain = urlparse(url).netloc.lower()
-        if not domain:
-            raise ValueError(f"Invalid URL (no domain): '{url}'")
+    @staticmethod
+    def get_scraper(store_name: str, shop_id: str = "1") -> Any:
+        """
+        Створити та повернути екземпляр скрепера для мережі.
 
-        registry = get_registry()
-        scraper_cls = registry.get(domain)
-        if scraper_cls is None:
-            # Try stripping www. prefix as fallback
-            alt_domain = domain.removeprefix("www.")
-            scraper_cls = registry.get(alt_domain)
+        Args:
+            store_name: ідентифікатор мережі ('atb', 'silpo', ...)
+            shop_id: ID магазину
 
-        if scraper_cls is None:
+        Returns:
+            Екземпляр скрепера
+
+        Raises:
+            ValueError: якщо скрепер не знайдено
+        """
+        scraper_class = _REGISTRY.get(store_name.lower())
+
+        if not scraper_class:
+            available = sorted(_REGISTRY.keys())
             raise ValueError(
-                f"No scraper for domain '{domain}'. "
-                f"Registered: {', '.join(sorted(registry))}"
+                f"Фабрика не знає, як парсити магазин: '{store_name}'. "
+                f"Доступні: {available}. Пиши новий адаптер!"
             )
-        return scraper_cls(headless=headless)
+
+        return scraper_class(shop_id=shop_id)
 
     @staticmethod
-    def supported_domains() -> List[str]:
-        """List all domains that have a registered scraper."""
-        return sorted(get_registry().keys())
+    def get_available_chains() -> list[str]:
+        """Повертає відсортований список доступних мереж."""
+        return sorted(_REGISTRY.keys())
 
     @staticmethod
-    def supported_stores() -> List[str]:
-        """List unique store names."""
-        return sorted({cls.STORE_NAME for cls in get_registry().values()})
+    def run_all(shop_id: str = "1"):
+        """Запускає всі зареєстровані скрепери."""
+        for slug in sorted(_REGISTRY.keys()):
+            logger.info(f"── Запуск скрепера: {slug} ──")
+            scraper = ScraperFactory.get_scraper(slug, shop_id=shop_id)
+            try:
+                scraper.scrape()
+            except Exception as e:
+                logger.error(f"Помилка скрепера {slug}: {e}")
+            finally:
+                scraper.close()
+
+        logger.info("══ Всі скрепери завершили роботу ══")

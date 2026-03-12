@@ -1,82 +1,36 @@
 """
-URL configuration for Fiscus API.
-
-This module defines all API routes for the application,
-including product, store, shopping list, and premium endpoints.
+API URL configuration.
 """
+
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from rest_framework_simplejwt.views import (
-    TokenObtainPairView,
-    TokenRefreshView,
-)
+from . import views, views_auth, views_chains, views_premium, monitoring
 
-from apps.api.views import (
-    ProductViewSet,
-    StoreViewSet,
-    ShoppingListViewSet,
-    ComparisonViewSet,
-    PromotionsViewSet,
-    StatusView,
-    DashboardStatsView,
-    PromotionsStoreListView,
-    StorePromotionsView,
-    ManagerScraperView,
-)
-from apps.api.views_premium import SurvivalView, PriceHistoryView
-from apps.api.views_auth import RegisterView, UserProfileView
-from apps.api.monitoring import (
-    task_status,
-    task_list,
-    task_stats,
-    task_logs,
-)
-
-# Configure router for viewsets
 router = DefaultRouter()
-router.register(r'products', ProductViewSet, basename='product')
-router.register(r'stores', StoreViewSet, basename='store')
-router.register(r'shopping-lists', ShoppingListViewSet, basename='shopping-list')
-router.register(r'comparison', ComparisonViewSet, basename='comparison')
-router.register(r'promotions', PromotionsViewSet, basename='promotions')
-router.register(r'scraper', ManagerScraperView, basename='scraper')
+router.register(r'products', views.ProductViewSet)
+router.register(r'categories', views.CategoryViewSet)
+router.register(r'shopping-lists', views.ShoppingListViewSet, basename='shoppinglist')
+router.register(r'chains', views_chains.ChainViewSet)
 
-# URL patterns
 urlpatterns = [
-    # Router URLs (products, stores, shopping-lists, comparison)
     path('', include(router.urls)),
-    
-    # JWT Authentication
-    path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-    
-    # User Management
-    path('auth/register/', RegisterView.as_view(), name='auth_register'),
-    path('auth/profile/', UserProfileView.as_view(), name='auth_profile'),
-    
-    # Status endpoint
-    path('status/', StatusView.as_view(), name='status'),
-    
-    # Dashboard stats
-    path('dashboard/', DashboardStatsView.as_view(), name='dashboard_stats'),
-    
-    # Premium endpoints
-    path('premium/survival/', SurvivalView.as_view(), name='premium_survival'),
-    path(
-        'premium/history/<int:product_id>/',
-        PriceHistoryView.as_view(),
-        name='premium_history'
-    ),
-    
-    # Store Promotions
-    path('promotions/stores/', PromotionsStoreListView.as_view(), name='promotions_stores'),
-    path('promotions/<str:store_id>/', StorePromotionsView.as_view(), name='store_promotions'),
-    
-    # Geo-location endpoints
-    path('geo/', include('apps.geo.urls')),
-    
-    # 🔧 ADMIN MONITORING ENDPOINTS (Real-time Task Tracking)
-    path('admin/tasks/', task_list, name='admin_task_list'),
-    path('admin/tasks/stats/', task_stats, name='admin_task_stats'),
-    path('admin/tasks/<str:task_id>/', task_status, name='admin_task_status'),
-    path('admin/stores/<int:store_id>/task-logs/', task_logs, name='admin_store_task_logs'),
+    # Auth
+    path('auth/register/', views_auth.register_view, name='register'),
+    path('auth/login/', views_auth.login_view, name='login'),
+    path('auth/logout/', views_auth.logout_view, name='logout'),
+    path('auth/profile/', views_auth.profile_view, name='profile'),
+    path('auth/google/', views_auth.google_login_view, name='google-auth'),
+    # Features
+    path('promotions/', views.promotions_view, name='promotions'),
+    path('survival/', views.survival_basket_view, name='survival'),
+    path('compare/', views.compare_prices_view, name='compare'),
+    path('compare-cart/', views.compare_cart_view, name='compare-cart'),
+    # Analytics
+    path('analytics/inflation/', views_premium.inflation_analytics_view, name='inflation'),
+    path('analytics/price-index/', views_premium.price_index_view, name='price-index'),
+    # Monitoring
+    path('health/', monitoring.health_check, name='health'),
+    path('status/', monitoring.scraper_status, name='status'),
+    # AI Proxy
+    path('ai/chat/', views.ai_chat_view, name='ai-chat'),
+]

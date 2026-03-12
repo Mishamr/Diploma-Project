@@ -1,0 +1,117 @@
+# ─── Python ───
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.pyc
+.Python
+develop-eggs/
+downloads/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+.installed.cfg
+*.egg
+MANIFEST
+
+# ─── Django ───
+db.sqlite3
+*.log
+staticfiles/
+media/
+local_settings.py
+
+# ─── Environment (секрети — ніколи в git!) ───
+.env
+.env.*
+!.env.example
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# ─── Virtual environments ───
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ─── IDE ───
+.vscode/
+.idea/
+*.swp
+*.swo
+*.sublime-project
+*.sublime-workspace
+
+# ─── Node / React Native / Expo ───
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.expo/
+.expo-shared/
+web-build/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+.metro-cache/
+
+# ─── Android / iOS ───
+android/build/
+android/app/build/
+android/.gradle/
+ios/Pods/
+ios/build/
+ios/*.xcworkspace
+ios/Podfile.lock
+
+# ─── OS ───
+.DS_Store
+.DS_Store?
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# ─── Docker ───
+*.pid
+*.ctl
+gunicorn.ctl
+backend/gunicorn.ctl
+
+# ─── Testing ───
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+nosetests.xml
+pytest_cache/
+
+# ─── Playwright ───
+/test-results/
+/playwright-report/
+/playwright/.cache/
+
+# ─── Celery ───
+celerybeat-schedule
+celerybeat.pid
+
+# ─── Misc ───
+*.bak
+*.tmp
+*.temp
+.cache/

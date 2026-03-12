@@ -1,56 +1,34 @@
-# Scraping Architecture & Scheduling Guide
+# Cron / Celery Beat Schedule
 
-## 1. Automated Scheduling (Cron / Celery Beat)
+## Nightly Scrape
+- **Task**: `apps.scraper.tasks.scrape_all_stores_nightly`
+- **Schedule**: Every day at 02:00 Kyiv time
+- **Queue**: `light` (dispatches individual tasks to correct queues)
+- **What it does**: Iterates all active chains and stores, dispatches scrape tasks
 
-The scraper is configured to run automatically every day at **23:50**.
+## Queue Configuration
 
-### Method A: Docker Compose (Preferred)
-The `celery-beat` container handles scheduling automatically via `config/settings.py`.
-Ensure the container is running:
-```bash
-docker-compose up -d celery_beat
+| Queue   | Worker          | Concurrency | Memory | Used By |
+|---------|-----------------|-------------|--------|---------|
+| `light` | `celery_worker` | 4           | 512MB  | ATB, Novus, Varus, Fora, Eko, Tavria V |
+| `heavy` | `celery_heavy`  | 2           | 1GB    | Silpo, Auchan, Metro, Velmart |
+
+## Setup
+Configure via Django Admin → Periodic Tasks, or:
+
+```python
+from django_celery_beat.models import PeriodicTask, CrontabSchedule
+
+schedule, _ = CrontabSchedule.objects.get_or_create(
+    hour=2, minute=0,
+    timezone='Europe/Kyiv',
+)
+
+PeriodicTask.objects.get_or_create(
+    name='Nightly scrape all stores',
+    defaults={
+        'crontab': schedule,
+        'task': 'apps.scraper.tasks.scrape_all_stores_nightly',
+    },
+)
 ```
-
-### Method B: System Cron (Linux)
-If running without Docker, add this line to your crontab (`crontab -e`):
-
-```bash
-50 23 * * * cd /path/to/project && /path/to/venv/bin/python manage.py run_scheduler >> /var/log/fiscus-scraper.log 2>&1
-```
-
-### Method C: Standalone Service
-We provide a Python script using the `schedule` library if you prefer a simple long-running process:
-
-```bash
-python manage.py run_scheduler
-```
-*This will keep the terminal open and run the job at 23:50 daily.*
-
----
-
-## 2. Manager Tools (RBAC)
-
-### Access Control
-- **User Role**: Read-Only access to products.
-- **Manager Role**: Full access + Scraper Control.
-    - Must be `is_staff=True` OR belong to `Managers` group.
-
-### Force Update
-If the scraper failed or you need immediate data, use the Manager API:
-
-**Endpoint:** `POST /api/v1/scraper/run/`
-**Headers:** `Authorization: Bearer <token>`
-
-```bash
-curl -X POST http://localhost:8000/api/v1/scraper/run/ \
-     -H "Authorization: Bearer YOUR_MANAGER_TOKEN"
-```
-
----
-
-## 3. Anti-Bug Protocol (Validation)
-
-All scraped data passes through a strict Pydantic validation layer (`apps/scraper/schemas.py`).
-- **Rejected:** Prices <= 0, missing titles, invalid formats.
-- **Logged:** Validation failures are logged to `apps.scraper.services`.
-- **Out of Stock:** Items not found in the latest scrape are marked `is_available=False` rather than deleted.

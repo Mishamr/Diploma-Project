@@ -1,318 +1,228 @@
 /**
- * @fileoverview Axios API client configuration for Fiscus mobile app.
- * 
- * Provides:
- * - Automatic token injection via request interceptor
- * - Token refresh on 401 responses
- * - Centralized API endpoint functions
- * 
- * @module api/client
+ * API client for Fiscus backend.
  */
 
-import axios from 'axios';
-import { Platform } from 'react-native';
-import storage from '../utils/storage';
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
-/**
- * Base URL for API requests.
- * Android emulator uses 10.0.2.2 to reach host machine.
- * iOS simulator and web use localhost.
- */
-const BASE_URL = Platform.select({
-  android: 'http://10.0.2.2:8000/api/v1',
-  ios: 'http://localhost:8000/api/v1',
-  default: 'http://localhost:8000/api/v1',
-});
-
-/**
- * Axios instance with default configuration.
- */
-const apiClient = axios.create({
-  baseURL: BASE_URL,
-  timeout: 30000,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-});
-
-/**
- * Flag to prevent multiple simultaneous token refresh attempts.
- * @type {boolean}
- */
-let isRefreshing = false;
-
-/**
- * Queue of requests waiting for token refresh.
- * @type {Array<{resolve: Function, reject: Function}>}
- */
-let refreshQueue = [];
-
-/**
- * Process queued requests after token refresh.
- * @param {string|null} token - New access token or null on failure.
- */
-const processRefreshQueue = (token) => {
-  refreshQueue.forEach(({ resolve, reject }) => {
-    if (token) {
-      resolve(token);
-    } else {
-      reject(new Error('Token refresh failed'));
+class ApiClient {
+    constructor() {
+        this.token = null;
     }
-  });
-  refreshQueue = [];
-};
 
-/**
- * Request interceptor: Attach JWT token to all requests.
- */
-apiClient.interceptors.request.use(
-  async (config) => {
-    try {
-      const token = await storage.getItem('access_token');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-    } catch (error) {
-      console.warn('Failed to get access token:', error.message);
+    setToken(token) {
+        this.token = token;
     }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
 
-/**
- * Response interceptor: Handle 401 errors with token refresh.
- */
-apiClient.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
+    clearToken() {
+        this.token = null;
+    }
 
-    // Check if this is a 401 error and we haven't retried yet
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      // If already refreshing, queue this request
-      if (isRefreshing) {
-        return new Promise((resolve, reject) => {
-          refreshQueue.push({ resolve, reject });
-        }).then((token) => {
-          originalRequest.headers.Authorization = `Bearer ${token}`;
-          return apiClient(originalRequest);
-        });
-      }
+    async _request(endpoint, options = {}) {
+        const url = `${API_BASE}${endpoint}`;
+        const headers = {
+            'Content-Type': 'application/json',
+            ...options.headers,
+        };
 
-      originalRequest._retry = true;
-      isRefreshing = true;
-
-      try {
-        const refreshToken = await storage.getItem('refresh_token');
-
-        if (!refreshToken) {
-          throw new Error('No refresh token available');
+        if (this.token) {
+            headers['Authorization'] = `Token ${this.token}`;
         }
 
-        // Use plain axios to avoid interceptor loop
-        const { data } = await axios.post(`${BASE_URL}/token/refresh/`, {
-          refresh: refreshToken,
-        });
+        try {
+            const response = await fetch(url, { ...options, headers });
+            const data = await response.json();
 
-        // Store new tokens
-        await storage.setItem('access_token', data.access);
+            if (!response.ok) {
+                throw new Error(data.error || data.detail || `HTTP ${response.status}`);
+            }
 
-        if (data.refresh) {
-          await storage.setItem('refresh_token', data.refresh);
+            return data;
+        } catch (error) {
+            console.error(`API Error [${endpoint}]:`, error.message);
+            throw error;
         }
-
-        // Update default header
-        apiClient.defaults.headers.common.Authorization = `Bearer ${data.access}`;
-
-        // Process queued requests
-        processRefreshQueue(data.access);
-
-        // Retry original request
-        originalRequest.headers.Authorization = `Bearer ${data.access}`;
-        return apiClient(originalRequest);
-
-      } catch (refreshError) {
-        console.error('Token refresh failed:', refreshError.message);
-
-        // Clear tokens on refresh failure
-        await storage.deleteItem('access_token');
-        await storage.deleteItem('refresh_token');
-
-        processRefreshQueue(null);
-
-        // Could trigger logout event here
-        return Promise.reject(refreshError);
-      } finally {
-        isRefreshing = false;
-      }
     }
 
-    return Promise.reject(error);
-  }
-);
+    // ─── Auth ───
+    async register(username, email, password) {
+        return this._request('/auth/register/', {
+            method: 'POST',
+            body: JSON.stringify({ username, email, password }),
+        });
+    }
 
-// ============================================================================
-// API Functions
-// ============================================================================
+    async login(username, password) {
+        return this._request('/auth/login/', {
+            method: 'POST',
+            body: JSON.stringify({ username, password }),
+        });
+    }
 
-/**
- * Authenticate user and obtain JWT tokens.
- * @param {string} username - User's username.
- * @param {string} password - User's password.
- * @returns {Promise<{access: string, refresh: string}>} JWT tokens.
- */
-export const loginUser = (username, password) =>
-  apiClient.post('/token/', { username, password });
+    async logout() {
+        return this._request('/auth/logout/', { method: 'POST' });
+    }
 
-/**
- * Register a new user.
- * @param {Object} userData - { username, password, email }
- * @returns {Promise<Object>} Created user data.
- */
-export const registerUser = (userData) =>
-  apiClient.post('/auth/register/', userData);
+    async loginWithGoogle(googleAccessToken) {
+        return this._request('/auth/google/', {
+            method: 'POST',
+            body: JSON.stringify({ access_token: googleAccessToken }),
+        });
+    }
 
-/**
- * Get current user profile.
- * @returns {Promise<Object>} User profile data.
- */
-export const getUserProfile = () =>
-  apiClient.get('/auth/profile/');
+    async getProfile() {
+        return this._request('/auth/profile/');
+    }
 
-/**
- * Get stores near a location.
- * @param {number} lat - Latitude.
- * @param {number} lon - Longitude.
- * @param {number} [radius=10] - Search radius in km.
- * @returns {Promise<Array>} List of nearby stores.
- */
-export const getNearbyStores = (lat, lon, radius = 10) =>
-  apiClient.get('/stores/nearby/', { params: { lat, lon, radius } });
+    async updateProfile(data) {
+        return this._request('/auth/profile/', {
+            method: 'PUT',
+            body: JSON.stringify(data),
+        });
+    }
 
-/**
- * Search for products.
- * @param {string} [query] - Search query.
- * @returns {Promise<Array>} List of products.
- */
-export const getProducts = (query) =>
-  apiClient.get('/products/', { params: { search: query } });
+    // ─── Products & Categories ───
+    async getCategories() {
+        return this._request('/categories/');
+    }
 
-/**
- * Get user's shopping lists.
- * @returns {Promise<Array>} List of shopping lists.
- */
-export const getShoppingLists = () =>
-  apiClient.get('/shopping-lists/');
+    async getProducts(params = {}) {
+        if (typeof params === 'string') {
+            // Full URL from pagination 'next' field — strip the base prefix
+            const urlObj = new URL(params);
+            const basePath = new URL(API_BASE).pathname; // e.g. '/api/v1'
+            const relativePath = urlObj.pathname.replace(basePath, '') + urlObj.search;
+            return this._request(relativePath);
+        }
+        const query = new URLSearchParams(params).toString();
+        return this._request(`/products/?${query}`);
+    }
 
-/**
- * Compare prices for a product across stores.
- * @param {string} query - Product name to search.
- * @returns {Promise<Object>} Price comparison results.
- */
-export const compareProducts = (query) =>
-  apiClient.get('/comparison/search/', { params: { q: query } });
+    async getProduct(id) {
+        return this._request(`/products/${id}/`);
+    }
 
-/**
- * Analyze product for best value (Premium).
- * @param {string} query - Product name to analyze.
- * @returns {Promise<Object>} Analysis with Fiscus Index.
- */
-export const analyzeProduct = (query) =>
-  apiClient.get('/comparison/analyze/', { params: { q: query } });
+    async getProductPrices(id, days = 30) {
+        return this._request(`/products/${id}/prices/?days=${days}`);
+    }
 
-/**
- * Find cheapest basket location (Premium).
- * @param {Object} data - Location and shopping list.
- * @param {number} data.latitude - User latitude.
- * @param {number} data.longitude - User longitude.
- * @param {number} [data.radius=10] - Search radius.
- * @param {Array} [data.shopping_list] - Items to price.
- * @returns {Promise<Object>} Stores with basket prices.
- */
-export const locateCheapestBasket = (data) =>
-  apiClient.post('/geo/locate/', data);
+    async searchProducts(query) {
+        return this._request(`/products/?search=${encodeURIComponent(query)}`);
+    }
 
-/**
- * Get database sync status.
- * @returns {Promise<Object>} Status with last update time.
- */
-export const getStatus = () =>
-  apiClient.get('/status/');
+    async comparePrice(productId) {
+        return this._request(`/compare/?product_id=${productId}`);
+    }
 
-/**
- * Get dashboard statistics.
- * @returns {Promise<Object>} Dashboard stats including lists count, savings.
- */
-export const getDashboardStats = () =>
-  apiClient.get('/dashboard/');
+    // ─── Chains ───
+    async getChains() {
+        return this._request('/chains/');
+    }
 
-/**
- * Get price history for a product (Premium).
- * @param {number} productId - Product ID.
- * @returns {Promise<Array>} Price history data.
- */
-export const getPriceHistory = (productId) =>
-  apiClient.get(`/premium/history/${productId}/`);
+    async getChainProducts(slug, lat, lon) {
+        let endpoint = `/chains/${slug}/products/`;
+        if (lat && lon) {
+            endpoint += `?lat=${lat}&lon=${lon}`;
+        }
+        return this._request(endpoint);
+    }
 
-/**
- * Generate survival menu (Premium).
- * @param {number} budget - Total budget in UAH.
- * @param {number} [days=7] - Number of days.
- * @returns {Promise<Object>} Generated menu.
- */
-export const generateSurvivalMenu = (budget, days = 7) =>
-  apiClient.post('/premium/survival/', { budget, days });
+    async getChainStores(slug) {
+        return this._request(`/chains/${slug}/stores/`);
+    }
 
-/**
- * Get current promotions.
- * @returns {Promise<Array>} List of promotions.
- */
-export const getPromotions = () =>
-  apiClient.get('/promotions/');
+    // ─── Categories ───
+    async getCategories() {
+        return this._request('/categories/');
+    }
 
-/**
- * Create a new shopping list.
- * @param {Object} data - Shopping list data.
- * @param {string} data.name - List name.
- * @returns {Promise<Object>} Created shopping list.
- */
-export const createShoppingList = (data) =>
-  apiClient.post('/shopping-lists/', data);
+    // ─── Shopping Lists ───
+    async getShoppingLists() {
+        return this._request('/shopping-lists/');
+    }
 
-/**
- * Delete a shopping list.
- * @param {number} id - Shopping list ID.
- * @returns {Promise<void>}
- */
-export const deleteShoppingList = (id) =>
-  apiClient.delete(`/shopping-lists/${id}/`);
+    async createShoppingList(name) {
+        return this._request('/shopping-lists/', {
+            method: 'POST',
+            body: JSON.stringify({ name }),
+        });
+    }
 
-/**
- * Add item to shopping list.
- * @param {number} listId - Shopping list ID.
- * @param {Object} data - Item data (product_id, quantity).
- * @returns {Promise<Object>} Updated shopping list.
- */
-export const addItemToList = (listId, data) =>
-  apiClient.post(`/shopping-lists/${listId}/add_item/`, data);
+    async addToShoppingList(listId, productId, customName = '', quantity = 1) {
+        return this._request(`/shopping-lists/${listId}/add_item/`, {
+            method: 'POST',
+            body: JSON.stringify({ product_id: productId, custom_name: customName, quantity }),
+        });
+    }
 
-/**
- * Remove item from shopping list.
- * @param {number} listId - Shopping list ID.
- * @param {Object} data - Item data (item_id or product_id).
- * @returns {Promise<Object>} Updated shopping list.
- */
-export const removeItemFromList = (listId, data) =>
-  apiClient.post(`/shopping-lists/${listId}/remove_item/`, data);
+    async toggleShoppingItem(listId, itemId) {
+        return this._request(`/shopping-lists/${listId}/toggle-item/${itemId}/`, {
+            method: 'POST',
+        });
+    }
 
-/**
- * Toggle item checked status in shopping list.
- * @param {number} listId - Shopping list ID.
- * @param {number} itemId - Item ID.
- * @returns {Promise<Object>} Updated shopping list.
- */
-export const toggleListItem = (listId, itemId) =>
-  apiClient.post(`/shopping-lists/${listId}/toggle_item/`, { item_id: itemId });
+    async removeShoppingItem(listId, itemId) {
+        return this._request(`/shopping-lists/${listId}/remove-item/${itemId}/`, {
+            method: 'DELETE',
+        });
+    }
 
+    // ─── Features ───
+    async getPromotions(limit = 20, chain = null) {
+        let endpoint = `/promotions/?limit=${limit}`;
+        if (chain) endpoint += `&chain=${chain}`;
+        return this._request(endpoint);
+    }
+
+    async getSurvivalBasket(budget = 5000, days = 7, lat = null, lon = null) {
+        let endpoint = `/survival/?budget=${budget}&days=${days}`;
+        if (lat && lon) endpoint += `&lat=${lat}&lon=${lon}`;
+        return this._request(endpoint);
+    }
+
+    // ─── Analytics ───
+    async getInflation(days = 30) {
+        return this._request(`/analytics/inflation/?days=${days}`);
+    }
+
+    async getPriceIndex() {
+        return this._request('/analytics/price-index/');
+    }
+
+    // ─── Geo ───
+    async getNearbyStores(lat, lon, limit = 10) {
+        return this._request(`/geo/nearby/?lat=${lat}&lon=${lon}&limit=${limit}`);
+    }
+
+    async getStoresOnMap(chain = null) {
+        let endpoint = '/geo/stores/';
+        if (chain) endpoint += `?chain=${chain}`;
+        return this._request(endpoint);
+    }
+
+    async getCheapestBasket(lat, lon, productIds) {
+        return this._request('/geo/cheapest-basket/', {
+            method: 'POST',
+            body: JSON.stringify({ lat, lon, product_ids: productIds }),
+        });
+    }
+
+    // ─── Analytics ───
+    async getSavingsAnalytics() {
+        return this._request('/analytics/savings/');
+    }
+
+    async getAIRecommendations(cartItems) {
+        return this._request('/analytics/ai-recommend/', {
+            method: 'POST',
+            body: JSON.stringify({ items: cartItems }),
+        });
+    }
+
+    // ─── Health ───
+    async healthCheck() {
+        return this._request('/health/');
+    }
+}
+
+const apiClient = new ApiClient();
 export default apiClient;

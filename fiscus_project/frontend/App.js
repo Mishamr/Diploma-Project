@@ -1,44 +1,25 @@
-/**
- * @fileoverview Root Application Component.
- * 
- * Sets up global providers:
- * - SafeAreaProvider (for layout handling)
- * - AuthProvider (authentication state)
- * - CartProvider (shopping cart state)
- * - AppNavigator (navigation)
- * 
- * Also configures global status bar style.
- * 
- * @module App
- */
-
 import React from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-
-// Navigation & Context
-import AppNavigator from './src/navigation/AppNavigator';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { AuthProvider } from './src/context/AuthContext';
 import { CartProvider } from './src/context/CartContext';
+import { SettingsProvider } from './src/context/SettingsContext';
+import AppNavigator from './src/navigation/AppNavigator';
 
-// Theme
-import { colors } from './src/theme';
-
-/**
- * Main App Component.
- * 
- * Structure:
- * SafeAreaProvider -> AuthProvider -> CartProvider -> AppNavigator
- */
 export default function App() {
-  return (
-    <SafeAreaProvider>
-      <AuthProvider>
-        <CartProvider>
-          <StatusBar style="light" backgroundColor={colors.background} />
-          <AppNavigator />
-        </CartProvider>
-      </AuthProvider>
-    </SafeAreaProvider>
-  );
+    return (
+        <GestureHandlerRootView style={{ flex: 1 }}>
+            <SafeAreaProvider>
+                <SettingsProvider>
+                    <AuthProvider>
+                        <CartProvider>
+                            <StatusBar style="light" />
+                            <AppNavigator />
+                        </CartProvider>
+                    </AuthProvider>
+                </SettingsProvider>
+            </SafeAreaProvider>
+        </GestureHandlerRootView>
+    );
 }

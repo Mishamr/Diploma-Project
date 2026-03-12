@@ -1,17 +1,36 @@
-Django>=5.0
-djangorestframework
-celery
-redis
-psycopg[binary]
-selenium>=4.10.0
-webdriver-manager
-python-decouple
-django-cors-headers
-pytest
-pytest-django
-pytest-cov
-beautifulsoup4
-gunicorn
-requests
-djangorestframework-simplejwt
-dj-database-url==2.1.0
+# Django
+Django>=4.2,<5.0
+djangorestframework>=3.14
+django-cors-headers>=4.3
+django-celery-beat>=2.5
+python-dotenv>=1.0
+
+# Database
+psycopg2-binary>=2.9
+
+# Celery
+celery[redis]>=5.3
+redis>=5.0
+
+# Scraping
+requests>=2.31
+beautifulsoup4>=4.12
+lxml>=4.9
+curl_cffi>=0.7
+playwright>=1.40
+fake-useragent>=1.4
+
+# Fuzzy matching
+python-Levenshtein>=0.23
+thefuzz>=0.22
+
+# Data processing
+pydantic>=2.5
+
+# Testing
+pytest>=7.4
+pytest-django>=4.7
+
+# Production
+
+gunicorn>=21.2
