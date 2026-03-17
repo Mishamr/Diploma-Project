@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Map screen вЂ” stores on map with chain filter.
  */
 
@@ -13,7 +13,10 @@ import {
     Dimensions,
     Platform,
 } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
+// react-native-maps is not supported on web — load conditionally
+const MapView = Platform.OS !== 'web' ? require('react-native-maps').default : null;
+const Marker = Platform.OS !== 'web' ? require('react-native-maps').Marker : null;
+const PROVIDER_GOOGLE = Platform.OS !== 'web' ? require('react-native-maps').PROVIDER_GOOGLE : null;
 import Icon from '../components/Icon';
 import { useGeoStore } from '../stores';
 import { useLocation } from '../hooks';

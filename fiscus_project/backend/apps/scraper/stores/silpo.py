@@ -15,8 +15,8 @@ PER_PAGE = 30  # limit per request
 # Categories are now fetched dynamically from the API
 
 # ─── Concurrency settings ───
-MAX_CONCURRENT_CATEGORIES = 1
-MAX_CONCURRENT_PAGES = 1
+MAX_CONCURRENT_CATEGORIES = 3
+MAX_CONCURRENT_PAGES = 3
 MAX_PAGES_PER_CATEGORY = 30
 
 # Default headers for Silpo API
@@ -34,8 +34,6 @@ class SilpoScraper:
     CHAIN_SLUG = 'silpo'
 
     # Default UUID works without selecting a specific branch.
-    # To get a real branch UUID: open silpo.ua → select your store →
-    # check Network tab for /v1/uk/branches/<UUID>/products and copy that UUID.
     DEFAULT_BRANCH_ID = "1edb6b13-defd-6bb8-a1c4-87d073549907"
 
     def __init__(self, shop_id: str = "00000000-0000-0000-0000-000000000000"):
@@ -61,7 +59,8 @@ class SilpoScraper:
 
         print(f"[{self.CHAIN_NAME}] Зберігаю {len(all_products)} товарів у БД...")
         try:
-            shop_id_int = int(str(self.shop_id).strip())
+            # For Silpo, shop_id is often a UUID string, if it fails to convert to int, use a default or handle accordingly
+            shop_id_int = int(''.join(filter(str.isdigit, str(self.shop_id))) or "1")
         except ValueError:
             shop_id_int = 1
             
@@ -73,26 +72,30 @@ class SilpoScraper:
         semaphore = asyncio.Semaphore(MAX_CONCURRENT_CATEGORIES)
         
         client = UniversalScraperClient(
-            max_concurrent_requests=2,
-            min_jitter=1.0,
-            max_jitter=3.0,
+            max_concurrent_requests=10,
+            min_jitter=0.3,
+            max_jitter=1.0,
             max_retries=3,
         )
 
-        print(f"[{self.CHAIN_NAME}] Отримання динамічних категорій...")
+        print(f"[{self.CHAIN_NAME}] Отримання динамічних категорій...", flush=True)
         categories_url = BASE_URL + f"/v1/uk/branches/{self.branch_id}/categories"
         cat_resp = await client.fetch(categories_url, headers=API_HEADERS)
-        if cat_resp and cat_resp.status_code == 200:
-            cat_data = cat_resp.json()
-            for item in cat_data.get("items", []):
-                if item.get("parentId") is None:
-                    self.dynamic_categories.append({
-                        "slug": item.get("slug"),
-                        "title": item.get("title")
-                    })
+        
+        if not cat_resp or cat_resp.status_code != 200:
+            print(f"[{self.CHAIN_NAME}] [!] Не вдалося отримати категорії.")
+            return []
 
-        print(f"[{self.CHAIN_NAME}] Початок збору даних (async). Магазин ID: {self.shop_id}")
-        print(f"[{self.CHAIN_NAME}] Знайдено кореневих категорій: {len(self.dynamic_categories)} | Паралельно: {MAX_CONCURRENT_CATEGORIES}")
+        cat_data = cat_resp.json()
+        for item in cat_data.get("items", []):
+            if item.get("parentId") is None:
+                self.dynamic_categories.append({
+                    "slug": item.get("slug"),
+                    "title": item.get("title")
+                })
+
+        print(f"[{self.CHAIN_NAME}] Початок збору даних (async). Магазин ID: {self.shop_id}", flush=True)
+        print(f"[{self.CHAIN_NAME}] Знайдено кореневих категорій: {len(self.dynamic_categories)} | Паралельно: {MAX_CONCURRENT_CATEGORIES}", flush=True)
 
         tasks = [
             self._scrape_category(client, semaphore, cat["slug"], cat["title"])
@@ -170,19 +173,16 @@ class SilpoScraper:
 
         response = await client.fetch(url, params=params, headers=API_HEADERS)
         
-        if not response:
-            print(f"[Silpo Debug] Без відповіді для {slug} стор {page}")
-            return [], 0
-            
-        if response.status_code != 200:
-            print(f"[Silpo Debug] Помилка {response.status_code} для {slug}: {response.text[:200]}")
+        if not response or response.status_code != 200:
             return [], 0
 
         try:
             data = response.json()
-
-            # Silpo API returns: { "items": [...], "total": 150 }
             items = data.get("items") or data.get("products") or data.get("data") or []
+
+            if not items:
+                return [], 0
+                
             total_items = (
                 data.get("total")
                 or data.get("totalItems")
@@ -191,10 +191,6 @@ class SilpoScraper:
                 or len(items)
             )
             total_pages = (total_items + PER_PAGE - 1) // PER_PAGE if total_items else 1
-
-            if not items:
-                print(f"[Silpo Debug] 200 OK, але немає 'items'. Ключі JSON: {list(data.keys())[:10]}")
-                return [], 0
 
             products = []
             for item in items:
@@ -205,20 +201,17 @@ class SilpoScraper:
             return products, int(total_pages)
 
         except Exception as e:
-            print(f"[Silpo Debug] Error parsing Silpo JSON for {slug} page {page}: {e}")
+            print(f"[{self.CHAIN_NAME}] Error parsing Silpo JSON for {slug} page {page}: {e}")
             return [], 0
 
     def _parse_item(self, item: dict, category_name: str = '') -> dict | None:
         """Parse a single product dict from Silpo API."""
-        # ── ID — використовуємо externalProductId (стабільний int) ──────────
         product_id = item.get("externalProductId") or item.get("id")
         if not product_id:
             return None
 
-        # ── Назва ───────────────────────────────────────────────────────────
         title = item.get("title") or "Unknown"
 
-        # ── Ціна ────────────────────────────────────────────────────────────
         price_raw = item.get("displayPrice") or item.get("price") or 0
         try:
             price_val = float(price_raw)
@@ -234,27 +227,39 @@ class SilpoScraper:
         except (ValueError, TypeError):
             old_price_val = None
 
-        # ── Зображення ──────────────────────────────────────────────────────
         icon = item.get("icon") or ""
-        if icon and not icon.startswith("http"):
-            image_url = f"https://content.silpo.ua/tera/large/webp/{icon}"
+        if icon:
+            if not icon.startswith("http"):
+                # If icon already has an extension, use it. Otherwise, Silpo CDN prefers webp.
+                has_ext = any(icon.endswith(ext) for ext in [".webp", ".jpg", ".png", ".jpeg"])
+                img_path = icon if has_ext else f"{icon}.webp"
+                image_url = f"https://content.silpo.ua/tera/large/webp/{img_path}"
+            else:
+                image_url = icon
         else:
-            image_url = icon
+            image_url = ""
+        
+        # Fallback for old icon field if image_url still empty
+        if not image_url:
+            image_url = item.get("imageUrl") or ""
 
-        # ── Опис = одиниця виміру / вага порції ─────────────────────────────
         description = item.get("displayRatio") or item.get("ratio") or ""
 
-        # ── Наявність: stock > 0 ────────────────────────────────────────────
         stock = item.get("stock", 0)
         try:
             in_stock = float(stock) > 0
         except (ValueError, TypeError):
             in_stock = True
 
+        # ── Product URL ─────────────────────────────────────────────────────
+        slug = item.get("slug")
+        url = f"https://silpo.ua/products/{slug}" if slug else ""
+
         return {
             "external_store_id": str(product_id),
             "title": str(title),
             "image_url": image_url,
+            "url": url,
             "price": price_val,
             "old_price": old_price_val,
             "description": str(description),

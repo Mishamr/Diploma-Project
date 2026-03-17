@@ -24,6 +24,12 @@ _STOP_WORDS = {
     'упаковка', 'штука', 'банка', 'пляшка',
 }
 
+# Chain-specific private labels to avoid cross-matching
+PRIVATE_LABELS = {
+    'atb': {'своя лінія', 'розумний вибір', 'de luxe', 'спецзамовлення', 'выгодная цена'},
+    'silpo': {'повна чаша', 'премія', 'premiya', 'лавка традицій', 'власна кондитерська'},
+}
+
 
 class ProductMatcher:
     """Match scraped products across chains without EAN codes."""
@@ -133,14 +139,38 @@ class ProductMatcher:
             best_ratio = 0
 
             for candidate in candidates:
+                # ── Symmetric Private Label Protection ────────────────
+                # Calculate which private labels each side has
+                incoming_labels = set()
+                candidate_labels = set()
+                
+                for chain, labels in PRIVATE_LABELS.items():
+                    for label in labels:
+                        if label in normalized:
+                            incoming_labels.add(chain)
+                        if label in candidate.normalized_name:
+                            candidate_labels.add(chain)
+                
+                # If either has private labels from DIFFERENT chains, skip
+                if incoming_labels and candidate_labels:
+                    if not (incoming_labels & candidate_labels): # No overlap
+                        continue
+                # If only one has private labels, and it's NOT the current chain's, skip
+                # (e.g. Silpo product matching generic ATB product is okay ONLY if Silpo product is generic)
+                elif candidate_labels and store_chain not in candidate_labels:
+                    continue
+                elif incoming_labels and store_chain not in incoming_labels:
+                    # This shouldn't happen as incoming is from store_chain
+                    pass
+
                 ratio = fuzz.ratio(normalized, candidate.normalized_name) / 100.0
 
-                # Bonus for matching weight
+                # Bonus for matching weight (stricter: 0.005 instead of 0.01)
                 if features['weight_kg'] and candidate.weight_kg:
-                    if abs(features['weight_kg'] - candidate.weight_kg) < 0.01:
+                    if abs(features['weight_kg'] - candidate.weight_kg) < 0.005:
                         ratio += 0.1
 
-                # Bonus for matching brand
+                # Bonus for matching brand (only if not a private label brand)
                 if features['brand'] and candidate.brand:
                     if features['brand'].lower() == candidate.brand.lower():
                         ratio += 0.05
@@ -149,7 +179,8 @@ class ProductMatcher:
                     best_ratio = ratio
                     best_match = candidate
 
-            if best_match and best_ratio > 0.85:
+            # Higher threshold for cross-chain matching to avoid "Своя Марка" issues
+            if best_match and best_ratio > 0.92:
                 return best_match
         except ImportError:
             logger.warning("thefuzz not installed, skipping fuzzy matching")

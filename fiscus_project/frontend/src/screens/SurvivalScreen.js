@@ -1,11 +1,14 @@
-﻿import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Animated, Platform, Linking, Alert } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, ActivityIndicator, Animated, Platform, Linking } from 'react-native';
 import * as Location from 'expo-location';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from '../components/Icon';
 import { useSurvivalStore } from '../stores';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
-import MapView, { Marker } from 'react-native-maps';
+
+// react-native-maps is not supported on web — load conditionally
+const MapView = Platform.OS !== 'web' ? require('react-native-maps').default : null;
+const Marker = Platform.OS !== 'web' ? require('react-native-maps').Marker : null;
 
 // Component for bouncing marker
 const BouncingMarker = ({ store }) => {

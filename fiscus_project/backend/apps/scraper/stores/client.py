@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 
 # List of valid browser impersonations for curl_cffi (mimics real TLS fingerprints)
 BROWSER_PROFILES = [
-    "chrome110", "chrome101"
+    "chrome110", "chrome101", "chrome124"
 ]
 
 class UniversalScraperClient:

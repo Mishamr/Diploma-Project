@@ -28,17 +28,33 @@ class ApiClient {
             headers['Authorization'] = `Token ${this.token}`;
         }
 
+        console.log(`[API] ${options.method || 'GET'} ${url}`);
+
         try {
             const response = await fetch(url, { ...options, headers });
-            const data = await response.json();
+
+            let data;
+            try {
+                data = await response.json();
+            } catch (_) {
+                data = {};
+            }
 
             if (!response.ok) {
-                throw new Error(data.error || data.detail || `HTTP ${response.status}`);
+                const msg = data.error || data.detail || `HTTP ${response.status}`;
+                console.error(`[API] Error ${response.status} [${endpoint}]:`, msg, data);
+                throw new Error(msg);
             }
 
             return data;
         } catch (error) {
-            console.error(`API Error [${endpoint}]:`, error.message);
+            if (error.message === 'Network request failed') {
+                console.error(`[API] ❌ Network request failed — backend недоступний?`);
+                console.error(`[API] URL: ${url}`);
+                console.error(`[API] API_BASE: ${API_BASE}`);
+            } else {
+                console.error(`[API] Error [${endpoint}]:`, error.message, error);
+            }
             throw error;
         }
     }

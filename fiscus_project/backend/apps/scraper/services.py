@@ -48,11 +48,30 @@ def ingest_scraped_data(scraped_items: list[dict], chain_slug: str, store_id: in
     3. Get/create StoreItem
     4. Create Price record
     """
-    store = Store.objects.select_related('chain').get(id=store_id)
+    try:
+        store = Store.objects.select_related('chain').get(id=store_id)
+        # Ensure we are saving to a store of the correct chain
+        if store.chain.slug != chain_slug:
+            print(f"[Ingest] Store ID {store_id} belongs to '{store.chain.slug}', but we are scraping '{chain_slug}'. Finding appropriate store...", flush=True)
+            store = Store.objects.filter(chain__slug=chain_slug, is_active=True).first()
+            if not store:
+                print(f"[Ingest] ERROR: No active store found for chain '{chain_slug}'.", flush=True)
+                return {'saved': 0, 'errors': len(scraped_items)}
+            print(f"[Ingest] Redirected to Store ID {store.id} ({store.name})", flush=True)
+    except Store.DoesNotExist:
+        print(f"[Ingest] Store ID {store_id} not found. Finding first available store for '{chain_slug}'...", flush=True)
+        store = Store.objects.filter(chain__slug=chain_slug, is_active=True).first()
+        if not store:
+            print(f"[Ingest] ERROR: No store found for chain '{chain_slug}'.", flush=True)
+            return {'saved': 0, 'errors': len(scraped_items)}
     saved_count = 0
     error_count = 0
 
-    for raw_item in scraped_items:
+    print(f"[Ingest] Starting ingestion for {chain_slug}... Total items: {len(scraped_items)}", flush=True)
+    for i, raw_item in enumerate(scraped_items):
+        if i > 0 and i % 100 == 0:
+            print(f"  [Ingest] {chain_slug}: Processed {i}/{len(scraped_items)} items...", flush=True)
+
         try:
             # Validate
             item = ScrapedProduct(**raw_item)
@@ -62,18 +81,26 @@ def ingest_scraped_data(scraped_items: list[dict], chain_slug: str, store_id: in
             if not product:
                 error_count += 1
                 continue
+            
+            # Log matching for debugging
+            if product.name != item.title:
+                print(f"  [Matcher] {chain_slug}: Matched '{item.title[:30]}...' -> '{product.name[:30]}...'", flush=True)
 
-            # Update product image if available and not set
-            if item.image_url and not product.image_url:
+            # Update product image and category if changed
+            product_updated = False
+            if item.image_url and product.image_url != item.image_url:
+                print(f"  [Ingest] Updated photo for '{product.name[:30]}...'", flush=True)
                 product.image_url = item.image_url
-                product.save(update_fields=['image_url'])
+                product_updated = True
 
-            # Assign category if available and not yet assigned
-            if item.category and not product.category:
+            if item.category and (not product.category or product.category.name != item.category):
                 category = _get_or_create_category(item.category)
                 if category:
                     product.category = category
-                    product.save(update_fields=['category'])
+                    product_updated = True
+            
+            if product_updated:
+                product.save()
 
             # Get or create StoreItem
             store_item, _ = StoreItem.objects.get_or_create(
