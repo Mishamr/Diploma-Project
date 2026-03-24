@@ -8,8 +8,10 @@ from django.db.models import Avg, Count
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
+from rest_framework import status
+from rest_framework.permissions import IsAuthenticated
 
-from apps.core.models import Price, Product, Chain
+from apps.core.models import Price, Product, Chain, Purchase
 
 
 @api_view(['GET'])
@@ -107,3 +109,98 @@ def price_index_view(request):
         'period': f"{one_month_ago.date()} — {now.date()}",
         'categories': current_prices,
     })
+
+
+@api_view(['GET', 'POST'])
+@permission_classes([IsAuthenticated])
+def user_analytics_view(request):
+    """
+    GET /api/v1/analytics/user/
+    Return user purchase stats (total spent, saved, latest purchases, last login).
+    
+    POST /api/v1/analytics/user/
+    Save a new purchase.
+    """
+    if request.method == 'POST':
+        data = request.data
+        try:
+            purchase = Purchase.objects.create(
+                user=request.user,
+                chain_name=data.get('chain_name', 'Unknown'),
+                chain_slug=data.get('chain_slug', 'unknown'),
+                total_price=data.get('total_price', 0),
+                saved_amount=data.get('saved_amount', 0),
+                items_count=data.get('items_count', 0),
+            )
+            return Response({'status': 'ok', 'id': purchase.id}, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+    # GET method
+    purchases = Purchase.objects.filter(user=request.user)
+    
+    from django.db.models import Sum
+    total_spent = purchases.aggregate(total=Sum('total_price'))['total'] or 0
+    total_saved = purchases.aggregate(total=Sum('saved_amount'))['total'] or 0
+    
+    last_login = request.user.last_login
+
+    recent_purchases = purchases.order_by('-created_at')[:10]
+    history = [
+        {
+            'id': p.id,
+            'chain_name': p.chain_name,
+            'chain_slug': p.chain_slug,
+            'total_price': float(p.total_price),
+            'saved_amount': float(p.saved_amount),
+            'items_count': p.items_count,
+            'date': p.created_at.isoformat(),
+        }
+        for p in recent_purchases
+    ]
+
+    return Response({
+        'total_spent': float(total_spent),
+        'total_saved': float(total_saved),
+        'last_login': last_login.isoformat() if last_login else None,
+        'history': history,
+        'purchases_count': purchases.count()
+    })
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def expense_calendar_view(request):
+    """
+    GET /api/v1/analytics/calendar/
+    Aggregate purchases by month/year for the current user.
+    """
+    from django.db.models.functions import ExtractMonth, ExtractYear
+    from django.db.models import Sum
+
+    purchases = Purchase.objects.filter(user=request.user)
+    
+    stats = (
+        purchases
+        .annotate(month=ExtractMonth('created_at'), year=ExtractYear('created_at'))
+        .values('year', 'month')
+        .annotate(
+            total_spent=Sum('total_price'),
+            total_saved=Sum('saved_amount'),
+            count=Count('id')
+        )
+        .order_by('-year', '-month')
+    )
+
+    # Convert Decimals to floats for JSON
+    results = []
+    for s in stats:
+        results.append({
+            'year': s['year'],
+            'month': s['month'],
+            'total_spent': float(s['total_spent']),
+            'total_saved': float(s['total_saved']),
+            'count': s['count']
+        })
+
+    return Response(results)

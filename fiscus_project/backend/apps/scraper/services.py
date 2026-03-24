@@ -19,6 +19,21 @@ _matcher = ProductMatcher()
 _category_cache = {}
 
 
+def is_category_scraped(chain_slug: str, store_id: int, category_name: str, hours: int = 12) -> bool:
+    """Check if a category was scraped recently for a given store, to allow resuming."""
+    if not category_name:
+        return False
+        
+    threshold = timezone.now() - timezone.timedelta(hours=hours)
+    
+    return StoreItem.objects.filter(
+        store_id=store_id,
+        store__chain__slug=chain_slug,
+        product__category__name=category_name,
+        last_scraped__gte=threshold
+    ).exists()
+
+
 def _get_or_create_category(category_name: str) -> Category:
     """Find or create a category by name, with caching."""
     if not category_name:
@@ -147,3 +162,25 @@ def ingest_scraped_data(scraped_items: list[dict], chain_slug: str, store_id: in
         f"saved={saved_count}, errors={error_count}, total={len(scraped_items)}"
     )
     return {'saved': saved_count, 'errors': error_count}
+
+def cleanup_outdated_items(chain_slug: str, hours: int = 12):
+    """
+    Marks items as out of stock if they haven't been scraped recently.
+    This prevents outdated products from showing up in survival mode 
+    or search if they were removed from the store's website.
+    """
+    threshold = timezone.now() - timezone.timedelta(hours=hours)
+    
+    outdated_items = StoreItem.objects.filter(
+        store__chain__slug=chain_slug,
+        in_stock=True,
+        last_scraped__lt=threshold
+    )
+    
+    count = outdated_items.count()
+    if count > 0:
+        outdated_items.update(in_stock=False)
+        logger.info(f"[Cleanup] Marked {count} items as out of stock for {chain_slug}")
+    else:
+        logger.info(f"[Cleanup] No outdated items found for {chain_slug}")
+

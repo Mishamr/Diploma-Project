@@ -43,6 +43,7 @@ class ProductSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(source='category.name', read_only=True, default='')
     latest_price = serializers.SerializerMethodField()
     latest_old_price = serializers.SerializerMethodField()
+    image_url = serializers.CharField(source='best_image_url', read_only=True)
 
     class Meta:
         model = Product
@@ -148,7 +149,11 @@ class UserProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = UserProfile
-        fields = ['username', 'city', 'family_size', 'monthly_budget', 'preferred_chains']
+        fields = [
+            'username', 'city', 'family_size', 'monthly_budget', 
+            'preferred_chains', 'ai_custom_name', 'ai_allergies', 'ai_instructions',
+            'tickets', 'coins', 'is_pro'
+        ]
 
 
 class RegisterSerializer(serializers.Serializer):

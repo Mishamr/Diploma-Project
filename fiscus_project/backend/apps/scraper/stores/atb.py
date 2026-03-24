@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 BASE_URL = "https://www.atbmarket.com"
 
 # ─── Category URL → human-readable category name mapping ───
+# ТІЛЬКИ продуктові категорії
 CATEGORY_MAP = {
     # Акції / Економ / Новинки
     "/catalog/economy": "Економ",
@@ -58,17 +59,6 @@ CATEGORY_MAP = {
     "/catalog/380-sirki-dityachi": "Молочні продукти",
     "/catalog/329-smetana": "Молочні продукти",
     "/catalog/381-yaytsya-kuryachi-perepelini": "Молочні продукти",
-    # Алкоголь
-    "/catalog/292-alkogol-i-tyutyun": "Алкоголь",
-    "/catalog/vermut": "Алкоголь",
-    "/catalog/320-vino": "Алкоголь",
-    "/catalog/296-gorilka": "Алкоголь",
-    "/catalog/igriste-vino": "Алкоголь",
-    "/catalog/336-inshiy-alkogol": "Алкоголь",
-    "/catalog/350-kon-yak": "Алкоголь",
-    "/catalog/337-likeri-nastoyanki-bal-zami": "Алкоголь",
-    "/catalog/310-pivo": "Алкоголь",
-    "/catalog/slaboalkogolni-napoi": "Алкоголь",
     # Напої безалкогольні
     "/catalog/294-napoi-bezalkogol-ni": "Напої",
     "/catalog/364-yenergetichni": "Напої",
@@ -154,70 +144,13 @@ CATEGORY_MAP = {
     "/catalog/503-buterbrodi-burgeri": "Кулінарія",
     "/catalog/489-drugi-stravi": "Кулінарія",
     "/catalog/pica": "Кулінарія",
-    # Товари для дітей
-    "/catalog/373-tovari-dlya-ditey": "Товари для дітей",
-    "/catalog/374-pidguzki-pelyushki": "Товари для дітей",
-    "/catalog/450-servetki-vologi": "Товари для дітей",
-    # Побутова хімія
-    "/catalog/308-pobutova-khimiya-ta-neprodovol-chi-tovari": "Побутова хімія",
-    "/catalog/313-zasobi-dlya-mittya-posudu": "Побутова хімія",
-    "/catalog/zasobi-dla-cisenna": "Побутова хімія",
-    "/catalog/309-osvizhuvachi-povitrya": "Побутова хімія",
-    "/catalog/314-pral-ni-poroshki-ta-zasobi-dlya-prannya": "Побутова хімія",
-    # Гігієна та косметика
-    "/catalog/290-gigiena-i-kosmetika": "Гігієна та косметика",
-    "/catalog/473-vatni-palichki-diski": "Гігієна та косметика",
-    "/catalog/geli-dla-dusu": "Гігієна та косметика",
-    "/catalog/gigiena-rotovoi-poroznini": "Гігієна та косметика",
-    "/catalog/311-gigienichni-prokladki-tamponi": "Гігієна та косметика",
-    "/catalog/335-dezodoranti": "Гігієна та косметика",
-    "/catalog/doglad-za-volossam": "Гігієна та косметика",
-    "/catalog/387-doglyad-za-tilom": "Гігієна та косметика",
-    "/catalog/302-zasobi-dlya-golinnya": "Гігієна та косметика",
-    "/catalog/milo": "Гігієна та косметика",
-    "/catalog/372-pidguzki-dlya-doroslikh": "Гігієна та косметика",
-    "/catalog/376-prezervativi": "Гігієна та косметика",
-    "/catalog/423-servetki-rushniki": "Гігієна та косметика",
-    "/catalog/291-tualetniy-papir": "Гігієна та косметика",
-    "/catalog/345-shampuni": "Гігієна та косметика",
-    # Товари для дому
-    "/catalog/358-tovari-dlya-domu": "Товари для дому",
-    "/catalog/383-batareyki": "Товари для дому",
-    "/catalog/359-yelektrolampi": "Товари для дому",
-    "/catalog/370-zasobi-po-doglyadu-za-vzuttyam": "Товари для дому",
-    "/catalog/474-kantstovari": "Товари для дому",
-    "/catalog/458-kolgoti-gol-fi-shkarpetki": "Товари для дому",
-    "/catalog/384-medikamenti": "Товари для дому",
-    "/catalog/369-odnorazoviy-posud": "Товари для дому",
-    "/catalog/375-paketi-dlya-pokupok": "Товари для дому",
-    "/catalog/455-paketi-dlya-smittya": "Товари для дому",
-    "/catalog/363-sirniki-zapal-nichki": "Товари для дому",
-    "/catalog/420-tovari-dlya-vipichki-i-upakovki-izhi": "Товари для дому",
-    "/catalog/394-tovari-dlya-kukhni": "Товари для дому",
-    "/catalog/392-tovari-dlya-pribirannya": "Товари для дому",
-    # Товари для тварин
-    "/catalog/436-tovari-dlya-tvarin": "Товари для тварин",
-    "/catalog/437-korm": "Товари для тварин",
-    "/catalog/449-napovnyuvach": "Товари для тварин",
-    # Тютюнові вироби
-    "/catalog/479-tyutyunovi-virobi": "Тютюнові вироби",
-    "/catalog/sigareti": "Тютюнові вироби",
-    "/catalog/stiki-ta-elektronni-sigareti": "Тютюнові вироби",
-    # Канцелярія
-    "/catalog/389-kantselyars-ki-tovari": "Канцелярія",
-    "/catalog/475-dopomizhne-priladdya": "Канцелярія",
-    "/catalog/445-zoshiti-al-bomi-bloknoti": "Канцелярія",
-    "/catalog/477-kantselyars-ki-nabori": "Канцелярія",
-    "/catalog/407-papki-fayli-obkladinki": "Канцелярія",
-    "/catalog/483-ruchki-olivtsi-flomasteri": "Канцелярія",
-    "/catalog/453-farbi-plastilin-kley": "Канцелярія",
 }
 
 CATALOG_CATEGORIES = list(CATEGORY_MAP.keys())
 
 # ─── Concurrency settings ───
-MAX_CONCURRENT_CATEGORIES = 5   
-MAX_CONCURRENT_PAGES = 5        
+MAX_CONCURRENT_CATEGORIES = 3
+MAX_CONCURRENT_PAGES = 3
 MAX_PAGES_PER_CATEGORY = 30
 
 
@@ -240,22 +173,15 @@ class ATBScraper:
 
     def scrape(self):
         """Sync entry-point — запускає async runner."""
-        all_products = async_to_sync(self._run)()
-
-        if not all_products:
-            print(f"[{self.CHAIN_NAME}] Немає товарів для збереження.")
-            return
-
-        print(f"[{self.CHAIN_NAME}] Зберігаю {len(all_products)} товарів у БД...")
         try:
             shop_id_int = int(str(self.shop_id).strip())
         except ValueError:
             shop_id_int = 1
-        ingest_scraped_data(all_products, self.CHAIN_SLUG, shop_id_int)
-        print(f"[{self.CHAIN_NAME}] ✓ Збережено!")
 
-    async def _run(self):
-        all_products = []
+        async_to_sync(self._run)(shop_id_int)
+        print(f"[{self.CHAIN_NAME}] ✓ Парсинг завершено!")
+
+    async def _run(self, shop_id_int: int):
         semaphore = asyncio.Semaphore(MAX_CONCURRENT_CATEGORIES)
         
         # Optimized client (10 concurrent requests, safe but fast)
@@ -269,29 +195,39 @@ class ATBScraper:
         print(f"[{self.CHAIN_NAME}] Початок збору даних (async). Магазин ID: {self.shop_id}", flush=True)
         print(f"[{self.CHAIN_NAME}] Категорій: {len(self.CATALOG_CATEGORIES)} | Паралельно: {MAX_CONCURRENT_CATEGORIES}", flush=True)
 
+        from apps.scraper.services import is_category_scraped
+        from asgiref.sync import sync_to_async
+        is_scraped_async = sync_to_async(is_category_scraped)
+        ingest_async = sync_to_async(ingest_scraped_data)
+
         tasks = [
-            self._scrape_category(client, semaphore, cat)
+            self._scrape_and_ingest_category(client, semaphore, cat, shop_id_int, is_scraped_async, ingest_async)
             for cat in self.CATALOG_CATEGORIES
         ]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        await asyncio.gather(*tasks, return_exceptions=True)
 
-        for r in results:
-            if isinstance(r, list):
-                all_products.extend(r)
-            elif isinstance(r, Exception):
-                logger.warning(f"Category error: {r}")
+    async def _scrape_and_ingest_category(self, client, semaphore, category_path, shop_id_int, is_scraped_async, ingest_async):
+        category_name = CATEGORY_MAP.get(category_path, '')
+        
+        if await is_scraped_async(self.CHAIN_SLUG, shop_id_int, category_name, hours=12):
+            print(f"[{self.CHAIN_NAME}] ПРОПУСК: категорія '{category_name}' (вже оновлена нещодавно).", flush=True)
+            return
 
-        # Deduplicate by external_store_id
-        seen = set()
-        unique = []
-        for p in all_products:
-            key = p.get('external_store_id')
-            if key and key not in seen:
-                seen.add(key)
-                unique.append(p)
+        print(f"[{self.CHAIN_NAME}] СТАРТ: Збираємо категорію '{category_name}'...", flush=True)
+        products = await self._scrape_category(client, semaphore, category_path)
+        
+        if products:
+            # Deduplicate by external_store_id
+            seen = set()
+            unique = []
+            for p in products:
+                key = p.get('external_store_id')
+                if key and key not in seen:
+                    seen.add(key)
+                    unique.append(p)
 
-        print(f"\n[{self.CHAIN_NAME}] Зібрано унікальних товарів: {len(unique)}")
-        return unique
+            print(f"[{self.CHAIN_NAME}] ЗБЕРЕЖЕННЯ: {len(unique)} товарів для категорії '{category_name}'...", flush=True)
+            await ingest_async(unique, self.CHAIN_SLUG, shop_id_int)
 
     async def _scrape_category(self, client: UniversalScraperClient, semaphore: asyncio.Semaphore, category_path: str) -> list:
         """Scrape all pages of a category concurrently."""
@@ -305,8 +241,6 @@ class ATBScraper:
 
             if not page1_products:
                 return products
-
-            print(f"  ✓ {category_path} [{category_name}] — стор.1: {len(page1_products)} товарів", flush=True)
 
             if has_more:
                 # Fetch remaining pages concurrently

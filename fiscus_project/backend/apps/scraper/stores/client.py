@@ -24,9 +24,9 @@ class UniversalScraperClient:
 
     def __init__(
         self,
-        max_concurrent_requests: int = 10,
+        max_concurrent_requests: int = 3,
         min_jitter: float = 0.5,
-        max_jitter: float = 2.0,
+        max_jitter: float = 1.5,
         max_retries: int = 3,
         timeout: int = 20,
         proxy: str = None

@@ -24,6 +24,10 @@ import SurvivalScreen from '../screens/SurvivalScreen';
 import InflationScreen from '../screens/InflationScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import CompareCartScreen from '../screens/CompareCartScreen';
+import ExpenseCalendarScreen from '../screens/ExpenseCalendarScreen';
+import MiniGameScreen from '../screens/MiniGameScreen';
+import StoreScreen from '../screens/StoreScreen';
+import PaymentScreen from '../screens/PaymentScreen';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -186,6 +190,43 @@ export default function AppNavigator() {
                             options={{
                                 headerShown: true,
                                 title: 'Порівняння кошика',
+                                headerStyle: { backgroundColor: COLORS.bgPrimary },
+                                headerTintColor: COLORS.textPrimary,
+                            }}
+                        />
+                        <Stack.Screen
+                            name={ROUTES.EXPENSE_CALENDAR}
+                            component={ExpenseCalendarScreen}
+                            options={{
+                                headerShown: true,
+                                title: 'Календар витрат',
+                                headerStyle: { backgroundColor: COLORS.bgPrimary },
+                                headerTintColor: COLORS.textPrimary,
+                            }}
+                        />
+                        <Stack.Screen
+                            name={ROUTES.MINI_GAME}
+                            component={MiniGameScreen}
+                            options={{
+                                headerShown: false,
+                            }}
+                        />
+                        <Stack.Screen
+                            name={ROUTES.STORE}
+                            component={StoreScreen}
+                            options={{
+                                headerShown: true,
+                                title: 'Магазин Тікетів',
+                                headerStyle: { backgroundColor: COLORS.bgPrimary },
+                                headerTintColor: COLORS.textPrimary,
+                            }}
+                        />
+                        <Stack.Screen
+                            name={ROUTES.PAYMENT}
+                            component={PaymentScreen}
+                            options={{
+                                headerShown: true,
+                                title: 'Оформлення PRO',
                                 headerStyle: { backgroundColor: COLORS.bgPrimary },
                                 headerTintColor: COLORS.textPrimary,
                             }}

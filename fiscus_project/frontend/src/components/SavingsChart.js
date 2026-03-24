@@ -32,10 +32,19 @@ export default function SavingsChart({ data = [], title = 'Заощадженн�
     const minV = Math.min(...values);
     const maxV = Math.max(...values) || 1;
 
-    const toX = i => PAD_LEFT + (i / (values.length - 1)) * innerW;
-    const toY = v => PAD_TOP + innerH - ((v - minV) / (maxV - minV)) * innerH;
+    const toX = i => {
+        if (values.length < 2) return PAD_LEFT + innerW / 2;
+        return PAD_LEFT + (i / (values.length - 1)) * innerW;
+    };
+    const toY = v => {
+        const diff = maxV - minV;
+        if (diff === 0) return PAD_TOP + innerH / 2;
+        return PAD_TOP + innerH - ((v - minV) / diff) * innerH;
+    };
 
-    const points = values.map((v, i) => `${toX(i)},${toY(v)}`).join(' ');
+    const points = values.length > 0 
+        ? values.map((v, i) => `${toX(i)},${toY(v)}`).join(' ')
+        : "";
 
     // Smooth path using cubic bezier
     const pathD = values.reduce((acc, v, i) => {
@@ -49,7 +58,9 @@ export default function SavingsChart({ data = [], title = 'Заощадженн�
     }, '');
 
     // Fill path
-    const fillD = `${pathD} L ${toX(values.length - 1)} ${PAD_TOP + innerH} L ${PAD_LEFT} ${PAD_TOP + innerH} Z`;
+    const fillD = values.length > 1 
+        ? `${pathD} L ${toX(values.length - 1)} ${PAD_TOP + innerH} L ${PAD_LEFT} ${PAD_TOP + innerH} Z`
+        : "";
 
     // Y axis ticks
     const yTicks = 4;

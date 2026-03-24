@@ -73,7 +73,7 @@ class ChainViewSet(viewsets.ReadOnlyModelViewSet):
                     'brand': si.product.brand,
                     'weight': si.product.weight,
                     'category': si.product.category.name if si.product.category else '',
-                    'image_url': si.product.image_url,
+                    'image_url': si.product.best_image_url,
                     'price': float(latest_price.price),
                     'old_price': float(latest_price.old_price) if latest_price.old_price else None,
                     'is_promo': latest_price.is_promo,

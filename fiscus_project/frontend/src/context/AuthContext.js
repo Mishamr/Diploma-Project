@@ -22,14 +22,42 @@ export function AuthProvider({ children }) {
             const storedToken = await AsyncStorage.getItem('auth_token');
             const storedUser = await AsyncStorage.getItem('auth_user');
             if (storedToken && storedUser) {
-                setToken(storedToken);
-                setUser(JSON.parse(storedUser));
                 apiClient.setToken(storedToken);
+                try {
+                    // Try fetching profile to validate the token and get latest fields
+                    const profile = await apiClient.getProfile(); 
+                    setToken(storedToken);
+                    
+                    const updatedUser = { ...JSON.parse(storedUser), ...profile };
+                    setUser(updatedUser);
+                    await AsyncStorage.setItem('auth_user', JSON.stringify(updatedUser)); // update stored format
+                } catch (err) {
+                    // Invalid or expired token (e.g. backend was reset)
+                    apiClient.clearToken();
+                    await AsyncStorage.removeItem('auth_token');
+                    await AsyncStorage.removeItem('auth_user');
+                }
             }
         } catch (error) {
             console.error('Failed to load auth:', error);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const fetchProfile = async () => {
+        if (!apiClient.token) return null;
+        try {
+            const profile = await apiClient.getProfile();
+            setUser(prev => {
+                const updated = { ...prev, ...profile };
+                AsyncStorage.setItem('auth_user', JSON.stringify(updated));
+                return updated;
+            });
+            return profile;
+        } catch (err) {
+            console.error('Fetch profile err:', err);
+            return null;
         }
     };
 
@@ -75,6 +103,34 @@ export function AuthProvider({ children }) {
         }
     };
 
+    const updateTickets = async (amount) => {
+        try {
+            const res = await apiClient.updateTickets(amount);
+            setUser(prev => ({ ...prev, tickets: res.tickets }));
+            return res.tickets;
+        } catch (e) { console.error('updateTickets error', e); return null; }
+    };
+
+    const addCoins = async (amount) => {
+        try {
+            const res = await apiClient.addCoins(amount);
+            setUser(prev => ({ ...prev, coins: res.coins }));
+            return res.coins;
+        } catch (e) { console.error('addCoins error', e); return null; }
+    };
+
+    const buyTickets = async (packageType) => {
+        const res = await apiClient.buyTickets(packageType);
+        setUser(prev => ({ ...prev, coins: res.coins, tickets: res.tickets }));
+        return res;
+    };
+
+    const upgradeToPro = async () => {
+        const res = await apiClient.upgradeToPro();
+        setUser(prev => ({ ...prev, is_pro: res.is_pro }));
+        return res.is_pro;
+    };
+
     const logout = async () => {
         try {
             await apiClient.logout();
@@ -95,6 +151,11 @@ export function AuthProvider({ children }) {
         register,
         loginWithGoogle,
         logout,
+        fetchProfile,
+        updateTickets,
+        addCoins,
+        buyTickets,
+        upgradeToPro,
     };
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

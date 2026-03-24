@@ -10,23 +10,27 @@ import {
     TouchableOpacity,
     StyleSheet,
     Dimensions,
+    SafeAreaView,
+    Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from '../components/Icon';
+import { DashboardSkeleton } from '../components/SkeletonLoader';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { usePromotionStore } from '../stores';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import ROUTES from '../constants/routes';
 import GlassCard from '../components/GlassCard';
-
-const { width } = Dimensions.get('window');
-const CARD_WIDTH = (width - SPACING.lg * 3) / 2;
+import { CHAINS, getChainColor } from '../constants/stores';
+import { useWindowDimensions } from 'react-native';
 
 export default function DashboardScreen({ navigation }) {
+    const { width } = useWindowDimensions();
+    const CARD_WIDTH = Platform.OS === 'web' && width > 768 ? 220 : (width - SPACING.lg * 3) / 2;
     const { user } = useAuth();
     const { totalItems, totalPrice } = useCart();
-    const { promotions, fetchPromotions } = usePromotionStore();
+    const { promotions, loading: promosLoading, fetchPromotions } = usePromotionStore();
 
     useEffect(() => {
         fetchPromotions(5);
@@ -64,7 +68,8 @@ export default function DashboardScreen({ navigation }) {
     ];
 
     return (
-        <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        <View style={Platform.OS === 'web' ? { height: '100vh', backgroundColor: COLORS.bgPrimary, overflow: 'hidden' } : { flex: 1, backgroundColor: COLORS.bgPrimary }}>
+        <ScrollView style={styles.container} showsVerticalScrollIndicator={Platform.OS === 'web'}>
             {/* Header with gradient */}
             <LinearGradient
                 colors={COLORS.gradientGemini}
@@ -75,7 +80,7 @@ export default function DashboardScreen({ navigation }) {
                 <View style={styles.headerTop}>
                     <View>
                         <Text style={styles.greeting}>
-                            Привіт, {user?.username || 'Гість'} 👋
+                            Привіт, {user?.username || 'Гість'}
                         </Text>
                         <Text style={styles.headerSubtitle}>
                             Порівнюй ціни, заощаджуй кошти
@@ -97,7 +102,7 @@ export default function DashboardScreen({ navigation }) {
                         </View>
                         <View style={{ flex: 1 }}>
                             <Text style={styles.savingsLabel}>Збережено цього місяця</Text>
-                            <Text style={styles.savingsValue}>1 190 ₴</Text>
+                            <Text style={styles.savingsValue}>0 ₴</Text>
                         </View>
                         <TouchableOpacity
                             onPress={() => navigation.navigate(ROUTES.ANALYTICS)}
@@ -125,16 +130,19 @@ export default function DashboardScreen({ navigation }) {
                 )}
             </LinearGradient>
 
-            {/* ATB store card */}
-            <Text style={styles.sectionTitle}>🏪 Магазин</Text>
-            <TouchableOpacity
-                style={styles.atbCard}
-                onPress={() => navigation.navigate(ROUTES.PRODUCT_FEED)}
-            >
-                <View style={[styles.atbDot, { backgroundColor: '#e74c3c' }]} />
-                <Text style={styles.atbName}>АТБ Маркет</Text>
-                <Icon name="chevron-forward" size={16} color={COLORS.textMuted} />
-            </TouchableOpacity>
+            {/* Stores section */}
+            <Text style={styles.sectionTitle}>🏪 Магазини</Text>
+            {CHAINS.map(chain => (
+                <TouchableOpacity
+                    key={chain.slug}
+                    style={styles.atbCard}
+                    onPress={() => navigation.navigate(ROUTES.PRODUCT_FEED, { chain: chain.slug })}
+                >
+                    <View style={[styles.atbDot, { backgroundColor: chain.color || getChainColor(chain.slug) }]} />
+                    <Text style={styles.atbName}>{chain.name} Маркет</Text>
+                    <Icon name="chevron-forward" size={16} color={COLORS.textMuted} />
+                </TouchableOpacity>
+            ))}
 
             {/* Quick Actions */}
             <Text style={styles.sectionTitle}>⚡ Швидкі дії</Text>
@@ -161,14 +169,16 @@ export default function DashboardScreen({ navigation }) {
             </View>
 
             {/* Promotions preview */}
-            {promotions.length > 0 && (
+            <View style={styles.sectionHeader}>
+                <Text style={styles.sectionTitle}>🔥 Актуальні акції</Text>
+                <TouchableOpacity onPress={() => navigation.navigate(ROUTES.PROMOTIONS)}>
+                    <Text style={styles.seeAll}>Усі →</Text>
+                </TouchableOpacity>
+            </View>
+            {promosLoading ? (
+                <DashboardSkeleton />
+            ) : promotions.length > 0 ? (
                 <>
-                    <View style={styles.sectionHeader}>
-                        <Text style={styles.sectionTitle}>🔥 Актуальні акції</Text>
-                        <TouchableOpacity onPress={() => navigation.navigate(ROUTES.PROMOTIONS)}>
-                            <Text style={styles.seeAll}>Усі →</Text>
-                        </TouchableOpacity>
-                    </View>
                     {promotions.slice(0, 3).map((promo, index) => (
                         <GlassCard key={index} style={styles.promoCard}>
                             <View style={styles.promoInfo}>
@@ -186,17 +196,17 @@ export default function DashboardScreen({ navigation }) {
                         </GlassCard>
                     ))}
                 </>
-            )}
+            ) : null}
 
             <View style={{ height: SPACING.xxl }} />
         </ScrollView>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.bgPrimary,
     },
     header: {
         padding: SPACING.lg,
@@ -303,7 +313,8 @@ const styles = StyleSheet.create({
         gap: SPACING.md,
     },
     actionCard: {
-        width: CARD_WIDTH,
+        width: Platform.OS === 'web' ? 240 : (Dimensions.get('window').width - SPACING.lg * 3) / 2,
+        flexGrow: 1,
         backgroundColor: COLORS.glass,
         borderRadius: RADIUS.lg,
         padding: SPACING.md,

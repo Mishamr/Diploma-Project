@@ -1,9 +1,9 @@
-﻿/**
+/**
  * Promotions screen вЂ” sales with product images and names.
  */
 
 import React, { useEffect, useState } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Image } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, StyleSheet, ActivityIndicator, Image, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from '../components/Icon';
 import { usePromotionStore } from '../stores';
@@ -19,11 +19,11 @@ export default function PromotionsScreen() {
 
     useEffect(() => { fetchPromotions(30, selectedChain); }, [selectedChain]);
 
-    const allChains = [{ slug: null, name: 'РЈСЃС–', icon: 'рџ”Ґ' }, ...CHAINS];
+    const allChains = [{ slug: null, name: 'Усі', icon: '🔥' }, ...CHAINS];
 
     const renderPromo = ({ item }) => {
         const discount = item.old_price ? Math.round((1 - item.price / item.old_price) * 100) : 0;
-        const productName = item.product_name || item.name || item.title || 'РўРѕРІР°СЂ';
+        const productName = item.product_name || item.name || item.title || 'Товар';
         const imageUrl = item.image_url;
 
         return (
@@ -32,9 +32,9 @@ export default function PromotionsScreen() {
                 {imageUrl ? (
                     <Image source={{ uri: imageUrl }} style={styles.image} resizeMode="cover" />
                 ) : (
-                    <View style={[styles.image, styles.imagePlaceholder]}>
-                        <Icon name="cube-outline" size={24} color={COLORS.textMuted} />
-                    </View>
+                    <View style={[styles.image, styles.promoPlaceholder, {justifyContent: 'center', alignItems: 'center'}]}>
+                    <Text style={{ fontSize: 10, color: COLORS.textMuted, fontWeight: 'bold' }}>немає ФОТО</Text>
+                </View>
                 )}
 
                 {/* Info */}
@@ -45,8 +45,8 @@ export default function PromotionsScreen() {
                         <Text style={styles.chainLabel}>{item.chain || getChainName(item.chain_slug)}</Text>
                     </View>
                     <View style={styles.priceRow}>
-                        <Text style={styles.price}>{item.price?.toFixed(2)} в‚ґ</Text>
-                        {item.old_price && <Text style={styles.oldPrice}>{item.old_price.toFixed(2)} в‚ґ</Text>}
+                        <Text style={styles.price}>{item.price?.toFixed(2)} ₴</Text>
+                        {item.old_price && <Text style={styles.oldPrice}>{item.old_price.toFixed(2)} ₴</Text>}
                     </View>
                 </View>
 
@@ -72,7 +72,7 @@ export default function PromotionsScreen() {
         <View style={styles.container}>
             <LinearGradient colors={['#fbbf24', '#d97706', '#92400e']} style={styles.header}>
                 <Icon name="pricetag" size={24} color="#fff" />
-                <Text style={styles.headerTitle}>РўРѕРї Р°РєС†С–С—</Text>
+                <Text style={styles.headerTitle}>Топ акції</Text>
             </LinearGradient>
 
             <FlatList
@@ -94,10 +94,12 @@ export default function PromotionsScreen() {
             {loading ? <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: 40 }} /> : (
                 <FlatList
                     data={promotions}
+                    style={{ flex: 1 }}
+                    showsVerticalScrollIndicator={Platform.OS === 'web'}
                     renderItem={renderPromo}
                     keyExtractor={(i, idx) => `${i.id || idx}`}
                     contentContainerStyle={{ paddingHorizontal: SPACING.md, paddingBottom: 40 }}
-                    ListEmptyComponent={<Text style={styles.empty}>РђРєС†С–С— РЅРµ Р·РЅР°Р№РґРµРЅРѕ</Text>}
+                    ListEmptyComponent={<Text style={styles.empty}>Акції не знайдено</Text>}
                 />
             )}
         </View>
@@ -105,7 +107,7 @@ export default function PromotionsScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.bgPrimary },
+    container: Platform.OS === 'web' ? { height: '100vh', backgroundColor: COLORS.bgPrimary, overflow: 'hidden' } : { flex: 1, backgroundColor: COLORS.bgPrimary },
     header: {
         paddingVertical: SPACING.md,
         alignItems: 'center',

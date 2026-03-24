@@ -81,6 +81,16 @@ class Product(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    @property
+    def best_image_url(self):
+        if self.image_url:
+            return self.image_url
+        # Look for this product in other stores
+        fallback = self.__class__.objects.filter(normalized_name=self.normalized_name).exclude(image_url='').first()
+        if fallback:
+            return fallback.image_url
+        return ''
+
     class Meta:
         ordering = ['normalized_name']
 
@@ -158,15 +168,43 @@ class ShoppingListItem(models.Model):
         return f"{name} x{self.quantity}"
 
 
+class Purchase(models.Model):
+    """User transaction for analytics."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='purchases')
+    chain_name = models.CharField(max_length=100)
+    chain_slug = models.CharField(max_length=100)
+    total_price = models.DecimalField(max_digits=10, decimal_places=2)
+    saved_amount = models.DecimalField(max_digits=10, decimal_places=2)
+    items_count = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.user.username} - {self.chain_name} ({self.total_price} ₴)"
+
+
 class UserProfile(models.Model):
     """Extended user profile."""
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
     city = models.CharField(max_length=100, default='Київ')
+    avatar_url = models.URLField(blank=True, default='')
     preferred_chains = models.ManyToManyField(Chain, blank=True)
     family_size = models.PositiveIntegerField(default=1)
     monthly_budget = models.DecimalField(
         max_digits=10, decimal_places=2, null=True, blank=True,
     )
+    # AI Personalization (Gemini-style)
+    ai_custom_name = models.CharField(max_length=100, blank=True, default='')
+    ai_allergies = models.TextField(blank=True, default='', help_text="Перелік алергій (напр. лактоза, горіхи)")
+    ai_instructions = models.TextField(blank=True, default='', help_text="Як бот має до вас звертатися або інші побажання")
+    
+    # Ticketing & Subscription
+    tickets = models.IntegerField(default=5, help_text="Тікети для доступу до AI функцій")
+    coins = models.IntegerField(default=0, help_text="Внутрішньоігрова валюта")
+    is_pro = models.BooleanField(default=False, help_text="Чи є користувач PRO (безлімітні тікети та додаткові функції)")
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):

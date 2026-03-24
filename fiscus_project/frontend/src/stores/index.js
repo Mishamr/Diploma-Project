@@ -69,10 +69,10 @@ export const useCategoryStore = create((set) => ({
     loading: false,
     error: null,
 
-    fetchCategories: async () => {
+    fetchCategories: async (chain = null) => {
         set({ loading: true, error: null });
         try {
-            const data = await apiClient.getCategories();
+            const data = await apiClient.getCategories(chain);
             set({ categories: data.results || data, loading: false });
         } catch (error) {
             set({ error: error.message, loading: false });
@@ -124,19 +124,79 @@ export const usePromotionStore = create((set) => ({
     },
 }));
 
-export const useSurvivalStore = create((set) => ({
+export const useSurvivalStore = create((set, get) => ({
     basket: null,
     loading: false,
+    error: null,
+    substitutions: null,
+    substituteLoading: false,
+    substituteItemIndex: null,
+    chain: null,
 
-    fetchSurvival: async (budget = 5000, days = 7, lat = null, lon = null) => {
-        set({ loading: true });
+    setChain: (chain) => set({ chain }),
+
+    fetchSurvival: async (budget, days, lat = null, lon = null) => {
+        set({ loading: true, error: null, basket: null, substitutions: null, substituteItemIndex: null });
         try {
-            const data = await apiClient.getSurvivalBasket(budget, days, lat, lon);
+            const { chain } = get();
+            const data = await apiClient.getSurvivalBasket(budget, days, lat, lon, chain);
             set({ basket: data, loading: false });
         } catch (error) {
-            set({ loading: false });
+            let msg = error.message || 'Помилка завантаження';
+            if (msg.includes('quota') || msg.includes('429')) {
+                // If AI fails, the backend should have fallback, but if the whole request fails:
+                msg = "ШІ зараз відпочиває (ліміт запитів). Спробуйте через 20 секунд або змініть бюджет.";
+            }
+            set({ error: msg, loading: false });
         }
     },
+
+    fetchSubstitutions: async (itemIndex, itemName, itemPrice, budget, days, lat = null, lon = null) => {
+        set({ substituteLoading: true, substituteItemIndex: itemIndex, substitutions: null });
+        try {
+            const { chain } = get();
+            const data = await apiClient.getSurvivalSubstitutions(itemName, itemPrice, budget, days, lat, lon, chain);
+            set({ substitutions: data, substituteLoading: false });
+        } catch (error) {
+            set({ substituteLoading: false });
+        }
+    },
+
+    replaceItem: (itemIndex, newItem) => {
+        const { basket } = get();
+        if (!basket || !basket.items) return;
+
+        const items = [...basket.items];
+        const oldItem = items[itemIndex];
+        items[itemIndex] = {
+            ...oldItem,
+            product_id: newItem.product_id,
+            product_name: newItem.name,
+            store: newItem.store,
+            store_id: newItem.store_id,
+            chain: newItem.chain,
+            price_per_unit: newItem.price,
+            quantity: oldItem.quantity,
+            total: newItem.price * oldItem.quantity,
+            distance_km: newItem.distance_km,
+            is_promo: newItem.is_promo,
+            ai_reason: newItem.reason || '',
+        };
+
+        const totalCost = items.reduce((sum, i) => sum + (i.total || 0), 0);
+        set({
+            basket: {
+                ...basket,
+                items,
+                total_cost: totalCost,
+                daily_cost: basket.days > 0 ? totalCost / basket.days : 0,
+            },
+            substitutions: null,
+            substituteItemIndex: null,
+        });
+    },
+
+    clearSubstitutions: () => set({ substitutions: null, substituteItemIndex: null }),
 }));
 
 // ─── Geo Store ───

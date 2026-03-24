@@ -27,6 +27,22 @@ API_HEADERS = {
     "Referer": "https://silpo.ua/",
 }
 
+# Non-food category slugs to EXCLUDE from scraping
+NON_FOOD_SLUGS = {
+    "pobutova-khimiia", "pobut-khimiia", "khimiya", "cleaning",
+    "hihiiena", "hihiena", "hygiene", "kosmetyka", "cosmetics",
+    "tovary-dlia-domu", "dom", "household",
+    "tovary-dlia-tvaryn", "tvaryny", "pets", "pet",
+    "kantseliariia", "kantseliariya", "stationery",
+    "tiutiunovi-vyroby", "tiutiun", "tobacco",
+    "alkohol", "alcohol", "vyno", "pyvo", "horilka",
+    "apteka", "pharmacy", "medykamenty",
+    "dytiacha-hihiiena", "pidguzky",
+    "odezhda", "vzuttia", "clothing", "shoes",
+    "elektronika", "tekhnika", "electronics",
+    "igrashky", "toys",
+}
+
 
 @register('silpo')
 class SilpoScraper:
@@ -51,30 +67,21 @@ class SilpoScraper:
         self.scrape()
 
     def scrape(self):
-        all_products = async_to_sync(self._run)()
-
-        if not all_products:
-            print(f"[{self.CHAIN_NAME}] Немає товарів для збереження.")
-            return
-
-        print(f"[{self.CHAIN_NAME}] Зберігаю {len(all_products)} товарів у БД...")
         try:
-            # For Silpo, shop_id is often a UUID string, if it fails to convert to int, use a default or handle accordingly
             shop_id_int = int(''.join(filter(str.isdigit, str(self.shop_id))) or "1")
         except ValueError:
             shop_id_int = 1
             
-        ingest_scraped_data(all_products, self.CHAIN_SLUG, shop_id_int)
-        print(f"[{self.CHAIN_NAME}] ✓ Збережено!")
+        async_to_sync(self._run)(shop_id_int)
+        print(f"[{self.CHAIN_NAME}] ✓ Парсинг завершено!")
 
-    async def _run(self):
-        all_products = []
+    async def _run(self, shop_id_int: int):
         semaphore = asyncio.Semaphore(MAX_CONCURRENT_CATEGORIES)
         
         client = UniversalScraperClient(
-            max_concurrent_requests=10,
-            min_jitter=0.3,
-            max_jitter=1.0,
+            max_concurrent_requests=5,
+            min_jitter=1.0,
+            max_jitter=2.5,
             max_retries=3,
         )
 
@@ -84,42 +91,58 @@ class SilpoScraper:
         
         if not cat_resp or cat_resp.status_code != 200:
             print(f"[{self.CHAIN_NAME}] [!] Не вдалося отримати категорії.")
-            return []
+            return
 
         cat_data = cat_resp.json()
         for item in cat_data.get("items", []):
             if item.get("parentId") is None:
+                slug = item.get("slug", "")
+                # Skip non-food categories
+                if slug in NON_FOOD_SLUGS:
+                    continue
+                # Also skip by partial match for safety
+                slug_lower = slug.lower()
+                if any(kw in slug_lower for kw in ["khimi", "higien", "kosmet", "tvary", "tobacco", "tiutiun", "kancel", "aptek", "pharm", "elektron", "tekhn", "vzutt", "odezh", "igras", "alkoh", "pidguz"]):
+                    continue
                 self.dynamic_categories.append({
-                    "slug": item.get("slug"),
+                    "slug": slug,
                     "title": item.get("title")
                 })
 
         print(f"[{self.CHAIN_NAME}] Початок збору даних (async). Магазин ID: {self.shop_id}", flush=True)
         print(f"[{self.CHAIN_NAME}] Знайдено кореневих категорій: {len(self.dynamic_categories)} | Паралельно: {MAX_CONCURRENT_CATEGORIES}", flush=True)
 
+        from apps.scraper.services import is_category_scraped
+        from asgiref.sync import sync_to_async
+        is_scraped_async = sync_to_async(is_category_scraped)
+        ingest_async = sync_to_async(ingest_scraped_data)
+
         tasks = [
-            self._scrape_category(client, semaphore, cat["slug"], cat["title"])
+            self._scrape_and_ingest_category(client, semaphore, cat["slug"], cat["title"], shop_id_int, is_scraped_async, ingest_async)
             for cat in self.dynamic_categories
         ]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
+        await asyncio.gather(*tasks, return_exceptions=True)
 
-        for r in results:
-            if isinstance(r, list):
-                all_products.extend(r)
-            elif isinstance(r, Exception):
-                print(f"[{self.CHAIN_NAME}] Category error Exception: {r}")
+    async def _scrape_and_ingest_category(self, client, semaphore, slug, category_name, shop_id_int, is_scraped_async, ingest_async):
+        if await is_scraped_async(self.CHAIN_SLUG, shop_id_int, category_name, hours=12):
+            print(f"[{self.CHAIN_NAME}] ПРОПУСК: категорія '{category_name}' (вже оновлена нещодавно).", flush=True)
+            return
 
-        # Deduplicate by external_store_id
-        seen = set()
-        unique = []
-        for p in all_products:
-            key = p.get('external_store_id')
-            if key and key not in seen:
-                seen.add(key)
-                unique.append(p)
+        print(f"[{self.CHAIN_NAME}] СТАРТ: Збираємо категорію '{category_name}'...", flush=True)
+        products = await self._scrape_category(client, semaphore, slug, category_name)
+        
+        if products:
+            # Deduplicate by external_store_id
+            seen = set()
+            unique = []
+            for p in products:
+                key = p.get('external_store_id')
+                if key and key not in seen:
+                    seen.add(key)
+                    unique.append(p)
 
-        print(f"\n[{self.CHAIN_NAME}] Зібрано унікальних товарів: {len(unique)}")
-        return unique
+            print(f"[{self.CHAIN_NAME}] ЗБЕРЕЖЕННЯ: {len(unique)} товарів для категорії '{category_name}'...", flush=True)
+            await ingest_async(unique, self.CHAIN_SLUG, shop_id_int)
 
     async def _scrape_category(self, client: UniversalScraperClient, semaphore: asyncio.Semaphore, slug: str, category_name: str) -> list:
         async with semaphore:
@@ -130,8 +153,6 @@ class SilpoScraper:
 
             if not page1_products:
                 return products
-
-            print(f"  ✓ {slug} [{category_name}] — стор.1: {len(page1_products)} товарів (всього сторінок: {total_pages})")
 
             if total_pages > 1:
                 page_sem = asyncio.Semaphore(MAX_CONCURRENT_PAGES)

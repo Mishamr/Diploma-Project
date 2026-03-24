@@ -164,14 +164,108 @@ def logout_view(request):
 def profile_view(request):
     """GET/PUT /api/v1/auth/profile/"""
     profile, _ = UserProfile.objects.get_or_create(user=request.user)
+    user = request.user
 
     if request.method == 'GET':
         serializer = UserProfileSerializer(profile)
-        return Response(serializer.data)
+        data = serializer.data
+        data['email'] = user.email
+        data['first_name'] = user.first_name
+        data['last_name'] = user.last_name
+        data['avatar_url'] = profile.avatar_url
+        return Response(data)
 
     elif request.method == 'PUT':
+        # Update User model fields
+        user_fields_changed = False
+        if 'username' in request.data:
+            new_username = request.data['username'].strip()
+            if new_username and new_username != user.username:
+                if User.objects.filter(username=new_username).exclude(id=user.id).exists():
+                    return Response(
+                        {'error': "Це ім'я вже зайняте"},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                user.username = new_username
+                user_fields_changed = True
+        for field in ('email', 'first_name', 'last_name'):
+            if field in request.data:
+                setattr(user, field, request.data[field])
+                user_fields_changed = True
+        if user_fields_changed:
+            user.save()
+
+        # Update avatar_url on profile
+        if 'avatar_url' in request.data:
+            profile.avatar_url = request.data['avatar_url']
+            profile.save(update_fields=['avatar_url'])
+
+        # Update UserProfile fields
         serializer = UserProfileSerializer(profile, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
-            return Response(serializer.data)
+            data = serializer.data
+            data['email'] = user.email
+            data['first_name'] = user.first_name
+            data['last_name'] = user.last_name
+            data['avatar_url'] = profile.avatar_url
+            return Response(data)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def update_tickets_view(request):
+    """POST /api/v1/auth/profile/tickets/"""
+    profile = request.user.profile
+    amount = int(request.data.get('amount', 0))
+    if amount != 0:
+        profile.tickets = max(0, profile.tickets + amount)
+        profile.save(update_fields=['tickets'])
+    return Response({'tickets': profile.tickets})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_coins_view(request):
+    """POST /api/v1/auth/profile/coins/"""
+    profile = request.user.profile
+    amount = int(request.data.get('amount', 100))
+    profile.coins += amount
+    profile.save(update_fields=['coins'])
+    return Response({'coins': profile.coins})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def buy_tickets_view(request):
+    """POST /api/v1/auth/profile/store/buy/"""
+    profile = request.user.profile
+    package = request.data.get('package', 'small') # small: 50 coins = 5 tickets
+    
+    costs = {'small': {'coins': 50, 'tickets': 5}, 'large': {'coins': 100, 'tickets': 15}}
+    
+    if package not in costs:
+        return Response({'error': 'Unknown package'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    cost = costs[package]
+    if profile.coins < cost['coins']:
+        return Response({'error': 'Недостатньо монет'}, status=status.HTTP_400_BAD_REQUEST)
+        
+    profile.coins -= cost['coins']
+    profile.tickets += cost['tickets']
+    profile.save(update_fields=['coins', 'tickets'])
+    
+    return Response({'coins': profile.coins, 'tickets': profile.tickets})
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def upgrade_pro_view(request):
+    """POST /api/v1/auth/profile/upgrade-pro/"""
+    profile = request.user.profile
+    # In a real app we would validate the payment with Stripe/etc.
+    # Here we just mock the upgrade.
+    profile.is_pro = True
+    profile.save(update_fields=['is_pro'])
+    return Response({'is_pro': profile.is_pro})

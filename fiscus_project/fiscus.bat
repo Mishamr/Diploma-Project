@@ -23,6 +23,7 @@ echo     [4]  Install dependencies
 echo     [6]  Django Shell
 echo     [7]  Docker: Status / Logs
 echo     [8]  Stop ALL
+echo     [9]  Run Migrations
 echo     [0]  Exit
 echo.
 echo   ============================================
@@ -37,6 +38,7 @@ if "%CHOICE%"=="5" goto SCRAPE
 if "%CHOICE%"=="6" goto SHELL
 if "%CHOICE%"=="7" goto STATUS
 if "%CHOICE%"=="8" goto STOP_ALL
+if "%CHOICE%"=="9" goto MIGRATE
 if "%CHOICE%"=="0" goto EXIT
 
 echo.
@@ -51,8 +53,7 @@ echo.
 echo   [*] Starting backend (Docker)...
 echo.
 pushd "%ROOT%"
-docker compose down >nul 2>&1
-docker compose up -d --build
+docker compose up -d
 popd
 echo.
 echo   [OK] Backend is running!
@@ -84,7 +85,7 @@ echo.
 echo   [*] Starting Docker services...
 echo.
 pushd "%ROOT%"
-docker compose up -d --build
+docker compose up -d
 popd
 echo.
 echo   ============================================
@@ -182,13 +183,18 @@ echo   ============================================
 echo.
     echo     [1] ATB
     echo     [2] Silpo
+    echo     [3] Auchan
     echo     [0] All chains
+    echo     [B] Back to main menu
     echo.
     set /p "SC=  Select chain: "
+
+    if /i "%SC%"=="B" goto MENU
 
     set "CHAIN="
     if "%SC%"=="1" set "CHAIN=atb"
     if "%SC%"=="2" set "CHAIN=silpo"
+    if "%SC%"=="3" set "CHAIN=auchan"
 
     pushd "%ROOT%"
     if "%SC%"=="0" (
@@ -250,6 +256,29 @@ docker compose down
 popd
 echo.
 echo   [OK] All services stopped!
+echo.
+pause
+goto MENU
+
+REM =============================================
+:MIGRATE
+cls
+echo.
+echo   ============================================
+echo     Running Django Migrations
+echo   ============================================
+echo.
+echo   [1/2] Making migrations...
+echo.
+pushd "%ROOT%"
+docker compose exec web python manage.py makemigrations
+echo.
+echo   [2/2] Applying migrations...
+echo.
+docker compose exec web python manage.py migrate
+popd
+echo.
+echo   [OK] Migrations complete!
 echo.
 pause
 goto MENU

@@ -5,6 +5,7 @@ import Icon from '../components/Icon';
 import { useCart } from '../context/CartContext';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import api from '../api/client';
+import ROUTES from '../constants/routes';
 
 export default function CompareCartScreen({ navigation }) {
     const { items, totalItems } = useCart();
@@ -63,8 +64,36 @@ export default function CompareCartScreen({ navigation }) {
 
     const bestChain = results[0];
 
+    const handleSavePurchase = async () => {
+        try {
+            setLoading(true);
+            const maxPrice = Math.max(...results.map(r => r.total_price));
+            const savedAmount = maxPrice - bestChain.total_price;
+
+            const payload = {
+                chain_name: bestChain.chain,
+                chain_slug: bestChain.chain.toLowerCase(),
+                total_price: bestChain.total_price,
+                saved_amount: savedAmount > 0 ? savedAmount : 0,
+                items_count: bestChain.items_found,
+            };
+
+            const response = await api.post('/analytics/user/', payload);
+            if (response.data && response.data.status === 'ok') {
+                Alert.alert('Успіх', 'Покупка збережена в аналітиці!');
+                navigation.navigate(ROUTES.ANALYTICS);
+            }
+        } catch (error) {
+            console.error('Failed to save purchase:', error);
+            Alert.alert('Помилка', 'Не вдалося зберегти покупку.');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     return (
-        <ScrollView style={styles.container} contentContainerStyle={{ padding: SPACING.lg }}>
+        <View style={styles.container}>
+        <ScrollView contentContainerStyle={{ padding: SPACING.lg }}>
             <View style={styles.header}>
                 <Icon name="trophy-outline" size={32} color={COLORS.accent} />
                 <Text style={styles.headerTitle}>Найкращий вибір:</Text>
@@ -103,6 +132,14 @@ export default function CompareCartScreen({ navigation }) {
                 </View>
             ))}
         </ScrollView>
+
+        <View style={styles.footer}>
+            <TouchableOpacity style={styles.saveBtn} onPress={handleSavePurchase}>
+                <Text style={styles.saveBtnText}>Зберегти покупку ({bestChain.total_price.toFixed(2)} ₴)</Text>
+            </TouchableOpacity>
+        </View>
+
+        </View>
     );
 }
 
@@ -208,5 +245,22 @@ const styles = StyleSheet.create({
         color: COLORS.error,
         marginTop: SPACING.sm,
         textAlign: 'right',
+    },
+    footer: {
+        padding: SPACING.lg,
+        backgroundColor: COLORS.bgCard,
+        borderTopWidth: 1,
+        borderColor: COLORS.glassBorder,
+    },
+    saveBtn: {
+        backgroundColor: COLORS.primary,
+        padding: SPACING.md,
+        borderRadius: RADIUS.md,
+        alignItems: 'center',
+    },
+    saveBtnText: {
+        ...FONTS.bold,
+        color: '#fff',
+        fontSize: 16,
     },
 });

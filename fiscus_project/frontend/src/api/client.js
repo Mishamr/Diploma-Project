@@ -21,18 +21,14 @@ class ApiClient {
         const url = `${API_BASE}${endpoint}`;
         const headers = {
             'Content-Type': 'application/json',
+            ...(this.token ? { 'Authorization': `Token ${this.token}` } : {}),
             ...options.headers,
         };
-
-        if (this.token) {
-            headers['Authorization'] = `Token ${this.token}`;
-        }
 
         console.log(`[API] ${options.method || 'GET'} ${url}`);
 
         try {
             const response = await fetch(url, { ...options, headers });
-
             let data;
             try {
                 data = await response.json();
@@ -45,18 +41,23 @@ class ApiClient {
                 console.error(`[API] Error ${response.status} [${endpoint}]:`, msg, data);
                 throw new Error(msg);
             }
-
             return data;
         } catch (error) {
-            if (error.message === 'Network request failed') {
-                console.error(`[API] ❌ Network request failed — backend недоступний?`);
-                console.error(`[API] URL: ${url}`);
-                console.error(`[API] API_BASE: ${API_BASE}`);
-            } else {
-                console.error(`[API] Error [${endpoint}]:`, error.message, error);
-            }
+            console.error(`[API] Error [${endpoint}]:`, error.message);
             throw error;
         }
+    }
+
+    async get(endpoint, options = {}) {
+        return this._request(endpoint, { ...options, method: 'GET' });
+    }
+
+    async post(endpoint, body = {}, options = {}) {
+        return this._request(endpoint, {
+            ...options,
+            method: 'POST',
+            body: JSON.stringify(body),
+        });
     }
 
     // ─── Auth ───
@@ -94,6 +95,31 @@ class ApiClient {
             method: 'PUT',
             body: JSON.stringify(data),
         });
+    }
+
+    async updateTickets(amount) {
+        return this._request('/auth/profile/tickets/', {
+            method: 'POST',
+            body: JSON.stringify({ amount }),
+        });
+    }
+
+    async addCoins(amount) {
+        return this._request('/auth/profile/coins/', {
+            method: 'POST',
+            body: JSON.stringify({ amount }),
+        });
+    }
+
+    async buyTickets(packageType) {
+        return this._request('/auth/profile/store/buy/', {
+            method: 'POST',
+            body: JSON.stringify({ package: packageType }),
+        });
+    }
+
+    async upgradeToPro() {
+        return this._request('/auth/profile/upgrade-pro/', { method: 'POST' });
     }
 
     // ─── Products & Categories ───
@@ -147,8 +173,10 @@ class ApiClient {
     }
 
     // ─── Categories ───
-    async getCategories() {
-        return this._request('/categories/');
+    async getCategories(chain = null) {
+        let endpoint = '/categories/';
+        if (chain) endpoint += `?chain=${chain}`;
+        return this._request(endpoint);
     }
 
     // ─── Shopping Lists ───
@@ -189,10 +217,21 @@ class ApiClient {
         return this._request(endpoint);
     }
 
-    async getSurvivalBasket(budget = 5000, days = 7, lat = null, lon = null) {
+    async getSurvivalBasket(budget = 5000, days = 7, lat = null, lon = null, chain = null) {
         let endpoint = `/survival/?budget=${budget}&days=${days}`;
         if (lat && lon) endpoint += `&lat=${lat}&lon=${lon}`;
+        if (chain) endpoint += `&chain=${chain}`;
         return this._request(endpoint);
+    }
+
+    async getSurvivalSubstitutions(itemName, itemPrice, budget, days, lat = null, lon = null, chain = null) {
+        const body = { item_name: itemName, item_price: itemPrice, budget, days };
+        if (lat && lon) { body.lat = lat; body.lon = lon; }
+        if (chain) { body.chain = chain; }
+        return this._request('/survival/substitute/', {
+            method: 'POST',
+            body: JSON.stringify(body),
+        });
     }
 
     // ─── Analytics ───
@@ -237,6 +276,10 @@ class ApiClient {
     // ─── Health ───
     async healthCheck() {
         return this._request('/health/');
+    }
+
+    async getUserAnalytics() {
+        return this._request('/analytics/user/');
     }
 }
 

@@ -2,6 +2,7 @@
 Main API views — products, shopping lists, promotions, survival.
 """
 
+from django.db.models import Q
 from rest_framework import viewsets, status
 from rest_framework.decorators import api_view, permission_classes, action
 from rest_framework.permissions import IsAuthenticated, AllowAny
@@ -9,11 +10,17 @@ from rest_framework.response import Response
 import os
 import urllib.request
 import json
+from dotenv import load_dotenv
+from pathlib import Path
+
+# Load env variables from root .env
+PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+load_dotenv(dotenv_path=PROJECT_ROOT / '.env')
 
 from apps.core.models import (
     Product, StoreItem, Price, ShoppingList, ShoppingListItem, Category,
 )
-from apps.core.services.survival import generate_survival_basket
+from apps.core.services.survival import generate_survival_basket, get_ai_substitutions
 from apps.core.services.promotions import get_top_promotions, get_price_history
 from .serializers import (
     ProductSerializer, ProductWithPricesSerializer,
@@ -70,6 +77,13 @@ class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
+
+    def get_queryset(self):
+        qs = Category.objects.all()
+        chain = self.request.query_params.get('chain')
+        if chain:
+            qs = qs.filter(products__store_items__store__chain__slug=chain).distinct()
+        return qs
     permission_classes = [AllowAny]
 
 
@@ -137,21 +151,57 @@ def promotions_view(request):
 
 
 @api_view(['GET'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def survival_basket_view(request):
     """GET /api/v1/survival/ — budget survival basket."""
+    profile = request.user.profile
+    if not profile.is_pro:
+        if profile.tickets < 1:
+            return Response({'error': 'Недостатньо тікетів'}, status=status.HTTP_402_PAYMENT_REQUIRED)
+        profile.tickets -= 1
+        profile.save(update_fields=['tickets'])
+
     budget = float(request.query_params.get('budget', 5000))
     days = int(request.query_params.get('days', 7))
     lat = request.query_params.get('lat')
     lon = request.query_params.get('lon')
+    chain = request.query_params.get('chain')
 
     basket = generate_survival_basket(
         budget=budget,
         days=days,
         lat=float(lat) if lat else None,
         lon=float(lon) if lon else None,
+        chain=chain,
     )
     return Response(basket)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def survival_substitute_view(request):
+    """POST /api/v1/survival/substitute/ — AI substitution recommendations."""
+    item_name = request.data.get('item_name', '')
+    item_price = float(request.data.get('item_price', 0))
+    budget = float(request.data.get('budget', 5000))
+    days = int(request.data.get('days', 7))
+    lat = request.data.get('lat')
+    lon = request.data.get('lon')
+    chain = request.data.get('chain')
+
+    if not item_name:
+        return Response({'error': 'item_name required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    result = get_ai_substitutions(
+        item_name=item_name,
+        item_price=item_price,
+        budget=budget,
+        days=days,
+        user_lat=float(lat) if lat else None,
+        user_lon=float(lon) if lon else None,
+        chain=chain,
+    )
+    return Response(result)
 
 
 @api_view(['GET'])
@@ -258,53 +308,138 @@ def compare_cart_view(request):
     })
 
 
+def get_ai_context(query, user=None):
+    """Fetch relevant data from DB to provide context for AI."""
+    context_parts = []
+    
+    # 1. Search for products and prices
+    keywords = [k.strip() for k in query.split() if len(k) > 2]
+    if keywords:
+        q_obj = Q()
+        for k in keywords:
+            q_obj |= Q(normalized_name__icontains=k)
+        
+        # Get top 15 matching products with latest prices
+        products = Product.objects.filter(q_obj)[:15]
+        if products:
+            context_parts.append("Знайдені товари та ціни:")
+            for p in products:
+                # Get latest price for each store item of this product
+                items = p.store_items.all()
+                for item in items:
+                    latest_price = item.prices.order_by('-recorded_at').first()
+                    if latest_price:
+                        promo = "(АКЦІЯ!)" if latest_price.is_promo else ""
+                        context_parts.append(f"- {p.name} ({item.store.chain.name}): {latest_price.price} грн {promo}")
+    
+    # 2. User Shopping List (if authenticated)
+    if user and user.is_authenticated:
+        sl = user.shopping_lists.first()
+        if sl:
+            items = sl.items.all()
+            if items:
+                context_parts.append("\nСписок покупок користувача:")
+                for i in items:
+                    context_parts.append(f"- {i.product.name} ({i.quantity} {i.product.unit})")
+
+    # 3. User Personalization (Gemini-style)
+    if user and user.is_authenticated:
+        try:
+            profile = user.profile
+            person_info = []
+            if profile.ai_custom_name:
+                person_info.append(f"Ім'я користувача: {profile.ai_custom_name}")
+            if profile.ai_allergies:
+                person_info.append(f"Алергії/Обмеження: {profile.ai_allergies}")
+            if profile.ai_instructions:
+                person_info.append(f"Особисті побажання: {profile.ai_instructions}")
+            
+            if person_info:
+                context_parts.append("\nПРОФІЛЬ КОРИСТУВАЧА:")
+                context_parts.extend(person_info)
+        except:
+            pass
+
+    return "\n".join(context_parts)
+
+
 @api_view(['POST'])
-@permission_classes([AllowAny])
+@permission_classes([IsAuthenticated])
 def ai_chat_view(request):
     """
     POST /api/v1/ai/chat/
     Proxy for Gemini API — keeps key server-side.
     Body: { "message": str, "context": str (optional) }
     """
+    profile = request.user.profile
+    
     message = request.data.get('message', '').strip()
-    context = request.data.get('context', '')
-
-    if not message:
-        return Response({'error': 'message required'}, status=status.HTTP_400_BAD_REQUEST)
-
-    api_key = request.data.get('gemini_key') or os.environ.get('GEMINI_API_KEY', '')
+    context_extra = request.data.get('context', '') # Renamed to avoid confusion with system prompt context
+    api_key = os.environ.get('OPENROUTER_API_KEY', '')
     if not api_key:
-        return Response({'error': 'Gemini API key not configured'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        return Response({'error': 'OpenRouter API key not configured'}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
 
-    GEMINI_URL = f'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}'
+    OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
-    system_prompt = f"""Ти — AI-помічник додатку Fiscus (розумний трекер цін, супермаркети АТБ, Сільпо та ін., Україна).
-Допомагаєш аналізувати ціни, знаходити знижки, порівнювати ціни між мережами та оптимізувати кошик покупок.
-Відповідай коротко, конкретно, по-українськи. Використовуй емодзі.
-{context}"""
+    # Fetch smart context from DB
+    db_context = get_ai_context(message, request.user)
+
+    system_prompt = f"""Ти — професійний консультант магазину Fiscus.
+Твоє завдання: надавати ТОЧНІ та КОНКРЕТНІ відповіді про ціни, акції та товари.
+Ти знаєш ситуацію в усіх мережах (АТБ, Сільпо та ін.).
+
+ПРАВИЛА:
+1. Звертайся до користувача так, як вказано в його профілі (якщо є ім'я).
+2. ОБОВ'ЯЗКОВО враховуй алергії: якщо в контексті є продукт-алерген — ПОПЕРЕДЬ про це.
+3. Будь професійним, але дружнім.
+4. Якщо в контексті є ціни — використовуй їх як істину.
+5. Відповідай коротко, по суті.
+
+{'[PRO РЕЖИМ] Надавай ПРІОРИТЕТНІ ПОВНІ відповіді з найдетальніжим аналізом.' if profile.is_pro else ''}
+
+КОНТЕКСТ З БАЗИ ДАНИХ:
+{db_context}
+
+ДОДАТКОВИЙ КОНТЕКСТ:
+{context_extra}"""
 
     payload = json.dumps({
-        'contents': [
-            {'role': 'user', 'parts': [{'text': system_prompt}]},
-            {'role': 'model', 'parts': [{'text': 'Зрозумів! Готовий допомагати.'}]},
-            {'role': 'user', 'parts': [{'text': message}]},
+        "model": "google/gemini-2.0-flash-001",
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": message}
         ],
-        'generationConfig': {'temperature': 0.7, 'maxOutputTokens': 512},
+        "temperature": 0.4, # Lower temperature for more factual responses
+        "max_tokens": 512,
     }).encode('utf-8')
 
     try:
         req = urllib.request.Request(
-            GEMINI_URL,
+            OPENROUTER_URL,
             data=payload,
-            headers={'Content-Type': 'application/json'},
+            headers={
+                'Content-Type': 'application/json',
+                'Authorization': f'Bearer {api_key}',
+                'HTTP-Referer': 'https://fiscus-project.local',
+                'X-Title': 'Fiscus App'
+            },
             method='POST',
         )
         with urllib.request.urlopen(req, timeout=30) as resp:
             data = json.loads(resp.read())
-        reply = data['candidates'][0]['content']['parts'][0]['text']
-        return Response({'reply': reply})
+        
+        if 'choices' in data:
+            reply = data['choices'][0]['message']['content']
+            return Response({'reply': reply})
+        else:
+            return Response({'error': 'OpenRouter response error', 'details': data}, status=status.HTTP_502_BAD_GATEWAY)
+
     except urllib.error.HTTPError as e:
-        body = json.loads(e.read().decode())
-        return Response({'error': body.get('error', {}).get('message', str(e))}, status=e.code)
+        try:
+            error_body = e.read().decode()
+            body = json.loads(error_body)
+            return Response({'error': body.get('error', {}).get('message', str(e))}, status=e.code)
+        except:
+            return Response({'error': f'HTTP Error {e.code}'}, status=e.code)
     except Exception as e:
-        return Response({'error': str(e)}, status=status.HTTP_502_BAD_GATEWAY)
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

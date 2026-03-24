@@ -17,42 +17,64 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from '../components/Icon';
 import { useCart } from '../context/CartContext';
+import { useAuth } from '../context/AuthContext';
 import apiClient from '../api/client';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
-
-async function callGemini(userMessage, cartItems, totalPrice, geminiKey) {
+async function callGemini(userMessage, cartItems, totalPrice) {
     const cartInfo = cartItems.length > 0
         ? `Кошик: ${cartItems.length} товарів, ${totalPrice.toFixed(2)} ₴. Товари: ${cartItems.map(i => `${i.name} (${i.price}₴)`).join(', ')}.`
         : 'Кошик порожній.';
 
-    const response = await fetch(`${API_BASE}/ai/chat/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+    try {
+        const data = await apiClient.post('/ai/chat/', {
             message: userMessage,
             context: cartInfo,
-            gemini_key: geminiKey,
-        }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-        throw new Error(data.error || `HTTP ${response.status}`);
+        });
+        return data.reply || '🤖 Не вдалося отримати відповідь.';
+    } catch (error) {
+        if (error.response && error.response.status === 429) {
+            return "⏳ ШІ зараз перевантажений запитами (ліміт Google Gemini). Будь ласка, зробіть паузу на 30-40 секунд і спробуйте написати ще раз. Це допоможе уникнути блокування.";
+        }
+        throw error;
     }
-
-    return data.reply || '🤖 Не вдалося отримати відповідь.';
 }
 
 
 export default function AIAssistantScreen() {
     const { items, totalPrice, totalItems } = useCart();
+    const { user } = useAuth();
     const [messages, setMessages] = useState([]);
     const [input, setInput] = useState('');
     const [thinking, setThinking] = useState(false);
     const scrollRef = useRef(null);
+    const [profile, setProfile] = useState(null);
+    const [showSettings, setShowSettings] = useState(false);
+    const [tempProfile, setTempProfile] = useState({});
+
+    useEffect(() => {
+        fetchProfile();
+    }, []);
+
+    const fetchProfile = async () => {
+        try {
+            const data = await apiClient.get('/auth/profile/');
+            setProfile(data);
+            setTempProfile(data);
+        } catch (e) {
+            console.error("Fetch profile error:", e);
+        }
+    };
+
+    const saveProfile = async () => {
+        try {
+            await apiClient.put('/auth/profile/', tempProfile);
+            setProfile(tempProfile);
+            setShowSettings(false);
+        } catch (e) {
+            console.error("Save profile error:", e);
+        }
+    };
 
     useEffect(() => {
         const greeting = totalItems > 0
@@ -70,12 +92,13 @@ export default function AIAssistantScreen() {
         setThinking(true);
 
         try {
-            const aiText = await callGemini(text, items, totalPrice, process.env.EXPO_PUBLIC_GEMINI_API_KEY);
+            const aiText = await callGemini(text, items, totalPrice);
             setMessages(prev => [...prev, { role: 'ai', text: aiText, time: new Date() }]);
         } catch (e) {
+            console.error("Gemini Chat Error:", e);
             setMessages(prev => [...prev, {
                 role: 'ai',
-                text: `❌ Помилка: ${e.message}. Перевірте підключення.`,
+                text: `❌ Помилка: ${e.message}. Можливо, ШІ тимчасово недоступний.`,
                 time: new Date(),
             }]);
         }
@@ -95,10 +118,10 @@ export default function AIAssistantScreen() {
         setMessages(prev => [...prev, { role: 'user', text: query, time: new Date() }]);
         setThinking(true);
         try {
-            const aiText = await callGemini(query, items, totalPrice, process.env.EXPO_PUBLIC_GEMINI_API_KEY);
+            const aiText = await callGemini(query, items, totalPrice);
             setMessages(prev => [...prev, { role: 'ai', text: aiText, time: new Date() }]);
         } catch (e) {
-            setMessages(prev => [...prev, { role: 'ai', text: `❌ ${e.message}`, time: new Date() }]);
+            setMessages(prev => [...prev, { role: 'ai', text: `❌ Помилка: ${e.message}`, time: new Date() }]);
         }
         setThinking(false);
     }, [thinking, items, totalPrice]);
@@ -121,10 +144,52 @@ export default function AIAssistantScreen() {
                     </View>
                     <View>
                         <Text style={styles.headerTitle}>Fiscus AI</Text>
-                        <Text style={styles.headerSub}>Google Gemini · Розумний помічник</Text>
+                        <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
+                            <Text style={styles.headerSub}>Google Gemini · Розумний помічник</Text>
+                            {user?.is_pro && (
+                                <View style={styles.proBadge}>
+                                    <Icon name="star" size={10} color={COLORS.accent} />
+                                    <Text style={styles.proText}>PRO</Text>
+                                </View>
+                            )}
+                        </View>
                     </View>
+                    <TouchableOpacity 
+                        style={styles.settingsBtn} 
+                        onPress={() => setShowSettings(!showSettings)}
+                    >
+                        <Icon name={showSettings ? "close" : "options-outline"} size={20} color="#fff" />
+                    </TouchableOpacity>
                 </View>
             </LinearGradient>
+
+            {showSettings && (
+                <View style={styles.settingsPanel}>
+                    <Text style={styles.settingsTitle}>Налаштування ШІ ⚙️</Text>
+                    <TextInput
+                        style={styles.settingsInput}
+                        placeholder="Як до вас звертатися?"
+                        value={tempProfile.ai_custom_name}
+                        onChangeText={t => setTempProfile({...tempProfile, ai_custom_name: t})}
+                    />
+                    <TextInput
+                        style={styles.settingsInput}
+                        placeholder="Алергії (лактоза, горіхи...)"
+                        value={tempProfile.ai_allergies}
+                        onChangeText={t => setTempProfile({...tempProfile, ai_allergies: t})}
+                    />
+                    <TextInput
+                        style={[styles.settingsInput, { height: 60 }]}
+                        placeholder="Додаткові побажання до бота"
+                        multiline
+                        value={tempProfile.ai_instructions}
+                        onChangeText={t => setTempProfile({...tempProfile, ai_instructions: t})}
+                    />
+                    <TouchableOpacity style={styles.saveSettingsBtn} onPress={saveProfile}>
+                        <Text style={styles.saveSettingsText}>Зберегти налаштування</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
 
             {/* Messages */}
             <ScrollView
@@ -146,6 +211,15 @@ export default function AIAssistantScreen() {
                             <Text style={[styles.msgText, msg.role === 'user' && styles.msgTextUser]}>
                                 {msg.text}
                             </Text>
+                            {msg.product && (
+                                <View style={styles.suggestionProduct}>
+                                    <Image source={{ uri: msg.product.image_url }} style={styles.suggestionImage} />
+                                    <View>
+                                        <Text style={styles.suggestionName}>{msg.product.name}</Text>
+                                        <Text style={styles.suggestionPrice}>{msg.product.price} ₴</Text>
+                                    </View>
+                                </View>
+                            )}
                         </View>
                     </View>
                 ))}
@@ -233,6 +307,8 @@ const styles = StyleSheet.create({
     },
     headerTitle: { ...FONTS.subtitle, color: '#fff' },
     headerSub: { color: 'rgba(255,255,255,0.7)', fontSize: 11 },
+    proBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#000', paddingHorizontal: 6, paddingVertical: 2, borderRadius: RADIUS.sm, gap: 2, borderWidth: 1, borderColor: COLORS.accent },
+    proText: { ...FONTS.bold, color: COLORS.accent, fontSize: 9 },
     badge: {
         marginLeft: 'auto',
         backgroundColor: 'rgba(255,255,255,0.2)',
@@ -241,6 +317,32 @@ const styles = StyleSheet.create({
         paddingVertical: 3,
     },
     badgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+    settingsBtn: { marginLeft: 'auto', padding: 8 },
+    settingsPanel: {
+        backgroundColor: COLORS.bgCard,
+        padding: SPACING.md,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.borderLight,
+        ...SHADOWS.card,
+    },
+    settingsTitle: { ...FONTS.medium, fontSize: 14, marginBottom: SPACING.sm },
+    settingsInput: {
+        backgroundColor: COLORS.bgInput,
+        borderRadius: RADIUS.sm,
+        padding: SPACING.sm,
+        marginBottom: SPACING.xs,
+        fontSize: 13,
+        borderWidth: 1,
+        borderColor: COLORS.borderLight,
+    },
+    saveSettingsBtn: {
+        backgroundColor: COLORS.primary,
+        borderRadius: RADIUS.full,
+        padding: SPACING.sm,
+        alignItems: 'center',
+        marginTop: SPACING.xs,
+    },
+    saveSettingsText: { color: '#fff', fontSize: 12, fontWeight: '700' },
 
     messages: { flex: 1 },
     messagesContent: { padding: SPACING.md, paddingBottom: SPACING.sm },

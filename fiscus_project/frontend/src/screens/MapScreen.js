@@ -62,14 +62,14 @@ export default function MapScreen() {
                 {locLoading ? (
                     <View style={styles.loadingMap}>
                         <ActivityIndicator size="large" color={COLORS.primary} />
-                        <Text style={styles.loadingText}>Р’РёР·РЅР°С‡Р°С”С‚СЊСЃСЏ РјС–СЃС†РµР·РЅР°С…РѕРґР¶РµРЅРЅСЏ...</Text>
+                        <Text style={styles.loadingText}>Визначається місцезнаходження...</Text>
                     </View>
                 ) : Platform.OS === 'web' ? (
                     <View style={styles.loadingMap}>
                         <Icon name="map-outline" size={48} color={COLORS.primaryLight} />
-                        <Text style={styles.loadingText}>РљР°СЂС‚Р° С‚РёРјС‡Р°СЃРѕРІРѕ РЅРµРґРѕСЃС‚СѓРїРЅР° РЅР° РІРµР±-РІРµСЂСЃС–С—</Text>
+                        <Text style={styles.loadingText}>Карта тимчасово недоступна на веб-версії</Text>
                         <Text style={[styles.loadingText, { fontSize: 12, marginTop: 4 }]}>
-                            Р—Р°РІР°РЅС‚Р°Р¶С‚Рµ Р·Р°СЃС‚РѕСЃСѓРЅРѕРє РЅР° РјРѕР±С–Р»СЊРЅРёР№ РїСЂРёСЃС‚СЂС–Р№ РґР»СЏ РїРµСЂРµРіР»СЏРґСѓ РєР°СЂС‚Рё
+                            Завантажте застосунок на мобільний пристрій для перегляду карти
                         </Text>
                     </View>
                 ) : (
@@ -98,7 +98,7 @@ export default function MapScreen() {
             {/* Chain filter */}
             <FlatList
                 horizontal
-                data={[{ slug: null, name: 'РЈСЃС–', icon: 'рџ“Ќ' }, ...CHAINS]}
+                data={[{ slug: null, name: 'Усі', icon: '📍' }, ...CHAINS]}
                 renderItem={({ item }) => (
                     <TouchableOpacity
                         style={[
@@ -136,7 +136,7 @@ export default function MapScreen() {
                         </View>
                         <View style={styles.storeDistance}>
                             <Text style={styles.distanceText}>
-                                {item.distance_km?.toFixed(1)} РєРј
+                                {item.distance_km?.toFixed(1)} км
                             </Text>
                         </View>
                     </View>
@@ -145,7 +145,7 @@ export default function MapScreen() {
                 contentContainerStyle={styles.storeList}
                 showsVerticalScrollIndicator={false}
                 ListEmptyComponent={
-                    <Text style={styles.emptyText}>РќР°Р№Р±Р»РёР¶С‡С– РјР°РіР°Р·РёРЅРё Р·Р°РІР°РЅС‚Р°Р¶СѓСЋС‚СЊСЃСЏ...</Text>
+                    <Text style={styles.emptyText}>Найближчі магазини завантажуються...</Text>
                 }
             />
         </View>

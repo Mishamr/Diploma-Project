@@ -16,6 +16,10 @@ export const ROUTES = {
     AI_ASSISTANT: 'AIAssistant',
     SETTINGS: 'Settings',
     COMPARE_CART: 'CompareCart',
+    EXPENSE_CALENDAR: 'ExpenseCalendar',
+    MINI_GAME: 'MiniGame',
+    STORE: 'Store',
+    PAYMENT: 'Payment',
 };
 
 export default ROUTES;

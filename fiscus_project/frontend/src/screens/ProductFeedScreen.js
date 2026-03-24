@@ -17,6 +17,7 @@ import {
     Image,
 } from 'react-native';
 import Icon from '../components/Icon';
+import { ProductFeedSkeleton } from '../components/SkeletonLoader';
 import { useProductStore, useCategoryStore } from '../stores';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
@@ -84,8 +85,8 @@ export default function ProductFeedScreen({ route }) {
     const { viewMode, enabledChains } = useSettings();
 
     useEffect(() => {
-        fetchCategories();
-    }, []);
+        fetchCategories(route?.params?.chain);
+    }, [route?.params?.chain]);
 
     useEffect(() => {
         if (debouncedSearch) {
@@ -116,8 +117,8 @@ export default function ProductFeedScreen({ route }) {
                     resizeMode="cover"
                 />
             ) : (
-                <View style={[viewMode === 'grid' ? styles.productImageGrid : styles.productImage, styles.productImagePlaceholder]}>
-                    <Icon name="cube-outline" size={24} color={COLORS.textMuted} />
+                <View style={[viewMode === 'grid' ? styles.productImageGrid : styles.productImage, styles.productImagePlaceholder, {justifyContent: 'center', alignItems: 'center'}]}>
+                    <Text style={{ fontSize: 10, color: COLORS.textMuted, fontWeight: 'bold' }}>немає ФОТО</Text>
                 </View>
             )}
 
@@ -251,12 +252,26 @@ export default function ProductFeedScreen({ route }) {
                             <Text style={[styles.chainToggleText, route?.params?.chain === 'silpo' && styles.chainToggleTextActive]}>Сільпо</Text>
                         </TouchableOpacity>
                     )}
+                    {enabledChains?.auchan !== false && (
+                        <TouchableOpacity
+                            style={[styles.chainToggle, route?.params?.chain === 'auchan' && styles.chainToggleActive]}
+                            onPress={() => {
+                                if (!route) route = { params: {} };
+                                else if (!route.params) route.params = {};
+                                route.params.chain = 'auchan';
+                                const params = { chain: 'auchan', ...(selectedCategory ? { category: selectedCategory } : {}) };
+                                fetchProducts(params);
+                            }}
+                        >
+                            <Text style={[styles.chainToggleText, route?.params?.chain === 'auchan' && styles.chainToggleTextActive]}>Ашан</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
             </View>
 
             {/* Products list */}
             {productsLoading ? (
-                <ActivityIndicator size="large" color={COLORS.primary} style={{ marginTop: SPACING.xxl }} />
+                <ProductFeedSkeleton count={6} mode={viewMode} />
             ) : (
                 <FlatList
                     key={viewMode}

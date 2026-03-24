@@ -71,6 +71,8 @@ class ScraperFactory:
             scraper = ScraperFactory.get_scraper(slug, shop_id=shop_id)
             try:
                 scraper.scrape()
+                from apps.scraper.services import cleanup_outdated_items
+                cleanup_outdated_items(slug)
             except Exception as e:
                 logger.error(f"Помилка скрепера {slug}: {e}")
             finally:
