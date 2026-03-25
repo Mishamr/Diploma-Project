@@ -2,8 +2,9 @@
 Management command to seed initial store/chain data.
 """
 
-from apps.core.models import Chain, Store
 from django.core.management.base import BaseCommand
+
+from apps.core.models import Chain, Store
 
 CHAINS_DATA = [
     {

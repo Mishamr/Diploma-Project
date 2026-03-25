@@ -14,8 +14,9 @@ import urllib.request
 from decimal import Decimal
 from pathlib import Path
 
-from apps.core.models import Price, Product, StoreItem
 from django.db.models import Q
+
+from apps.core.models import Price, Product, StoreItem
 from dotenv import load_dotenv
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent

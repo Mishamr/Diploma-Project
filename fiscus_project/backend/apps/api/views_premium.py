@@ -4,9 +4,10 @@ Premium views — inflation analytics.
 
 from datetime import timedelta
 
-from apps.core.models import Chain, Price, Product, Purchase
 from django.db.models import Avg, Count
 from django.utils import timezone
+
+from apps.core.models import Chain, Price, Product, Purchase
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated

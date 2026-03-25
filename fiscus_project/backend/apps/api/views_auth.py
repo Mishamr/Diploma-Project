@@ -4,11 +4,12 @@ Auth views — registration, login, logout, profile, Google OAuth.
 
 import logging
 
-import requests as http_requests
-from apps.core.models import UserProfile
 from django.conf import settings
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
+
+import requests as http_requests
+from apps.core.models import UserProfile
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.decorators import api_view, permission_classes

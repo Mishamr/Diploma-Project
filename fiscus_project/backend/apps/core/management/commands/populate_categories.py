@@ -3,9 +3,10 @@ Management command to populate categories for existing products.
 Uses the ATB scraper's CATEGORY_MAP to assign categories.
 """
 
-from apps.core.models import Category
 from django.core.management.base import BaseCommand
 from django.utils.text import slugify
+
+from apps.core.models import Category
 
 # Same categories as in atb.py CATEGORY_MAP
 CATEGORIES = [

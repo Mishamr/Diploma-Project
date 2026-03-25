@@ -3,6 +3,7 @@ API URL configuration.
 """
 
 from django.urls import include, path
+
 from rest_framework.routers import DefaultRouter
 
 from . import monitoring, views, views_auth, views_chains, views_premium
