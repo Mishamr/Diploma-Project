@@ -83,9 +83,30 @@ export default function AIAssistantScreen() {
         setMessages([{ role: 'ai', text: greeting, time: new Date() }]);
     }, []);
 
+    const isDietaryQuery = (txt) => {
+        const lower = txt.toLowerCase();
+        return lower.includes('здоров') || lower.includes('дієт') || lower.includes('меню') || lower.includes('алерг');
+    };
+
+    const needsProfileInfo = () => {
+        return !profile?.ai_allergies && !profile?.ai_instructions;
+    };
+
     const sendMessage = useCallback(async () => {
         const text = input.trim();
         if (!text || thinking) return;
+
+        if (isDietaryQuery(text) && needsProfileInfo()) {
+            setMessages(prev => [...prev, { role: 'user', text, time: new Date() }]);
+            setMessages(prev => [...prev, { 
+                role: 'ai', 
+                text: 'Перед тим, як я складу для вас кошик, будь ласка, заповніть інформацію про ваші алергії та вподобання у налаштуваннях (форма відкрита вище). Це допоможе мені підібрати ідеальні продукти 🥗', 
+                time: new Date() 
+            }]);
+            setShowSettings(true);
+            setInput('');
+            return;
+        }
 
         setMessages(prev => [...prev, { role: 'user', text, time: new Date() }]);
         setInput('');
@@ -115,6 +136,18 @@ export default function AIAssistantScreen() {
 
     const handleQuickAction = useCallback(async (query) => {
         if (thinking) return;
+        
+        if (isDietaryQuery(query) && needsProfileInfo()) {
+            setMessages(prev => [...prev, { role: 'user', text: query, time: new Date() }]);
+            setMessages(prev => [...prev, { 
+                role: 'ai', 
+                text: 'Перед тим, як я складу для вас кошик, будь ласка, заповніть інформацію про ваші алергії та вподобання у налаштуваннях (форма відкрита вище). Це допоможе мені підібрати ідеальні продукти 🥗', 
+                time: new Date() 
+            }]);
+            setShowSettings(true);
+            return;
+        }
+
         setMessages(prev => [...prev, { role: 'user', text: query, time: new Date() }]);
         setThinking(true);
         try {
@@ -169,18 +202,21 @@ export default function AIAssistantScreen() {
                     <TextInput
                         style={styles.settingsInput}
                         placeholder="Як до вас звертатися?"
+                        placeholderTextColor="rgba(255,255,255,0.4)"
                         value={tempProfile.ai_custom_name}
                         onChangeText={t => setTempProfile({...tempProfile, ai_custom_name: t})}
                     />
                     <TextInput
                         style={styles.settingsInput}
-                        placeholder="Алергії (лактоза, горіхи...)"
+                        placeholder="На що у вас алергія (лактоза, горіхи тощо)?"
+                        placeholderTextColor="rgba(255,255,255,0.4)"
                         value={tempProfile.ai_allergies}
                         onChangeText={t => setTempProfile({...tempProfile, ai_allergies: t})}
                     />
                     <TextInput
                         style={[styles.settingsInput, { height: 60 }]}
-                        placeholder="Додаткові побажання до бота"
+                        placeholder="Що ви не їсте (наприклад: м'ясо) та інші побажання (веган, кето)"
+                        placeholderTextColor="rgba(255,255,255,0.4)"
                         multiline
                         value={tempProfile.ai_instructions}
                         onChangeText={t => setTempProfile({...tempProfile, ai_instructions: t})}
@@ -240,24 +276,22 @@ export default function AIAssistantScreen() {
             </ScrollView>
 
             {/* Quick actions */}
-            {messages.length <= 1 && (
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.quickActions}
-                    contentContainerStyle={{ paddingHorizontal: SPACING.md }}
-                >
-                    {quickActions.map((qa, i) => (
-                        <TouchableOpacity
-                            key={i}
-                            style={styles.quickBtn}
-                            onPress={() => handleQuickAction(qa.query)}
-                        >
-                            <Text style={styles.quickBtnText}>{qa.label}</Text>
-                        </TouchableOpacity>
-                    ))}
-                </ScrollView>
-            )}
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.quickActions}
+                contentContainerStyle={{ paddingHorizontal: SPACING.md }}
+            >
+                {quickActions.map((qa, i) => (
+                    <TouchableOpacity
+                        key={i}
+                        style={styles.quickBtn}
+                        onPress={() => handleQuickAction(qa.query)}
+                    >
+                        <Text style={styles.quickBtnText}>{qa.label}</Text>
+                    </TouchableOpacity>
+                ))}
+            </ScrollView>
 
             {/* Input */}
             <View style={styles.inputBar}>
@@ -334,6 +368,7 @@ const styles = StyleSheet.create({
         fontSize: 13,
         borderWidth: 1,
         borderColor: COLORS.borderLight,
+        color: '#fff',
     },
     saveSettingsBtn: {
         backgroundColor: COLORS.primary,

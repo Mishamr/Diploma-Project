@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated, PanResponder, Dimensions, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, Animated, PanResponder, Dimensions, TouchableOpacity, Alert, Image, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from '../components/Icon';
 import { useAuth } from '../context/AuthContext';
@@ -17,6 +17,7 @@ export default function MiniGameScreen({ navigation }) {
     const [isPlaying, setIsPlaying] = useState(false);
     const [items, setItems] = useState([]);
     
+    const isPlayingRef = useRef(false);
     const basketX = useRef(new Animated.Value(width / 2 - BASKET_WIDTH / 2)).current;
     const requestRef = useRef();
     const lastSpawnRef = useRef(0);
@@ -38,6 +39,7 @@ export default function MiniGameScreen({ navigation }) {
         setScore(0);
         setTimeLeft(GAME_DURATION);
         setIsPlaying(true);
+        isPlayingRef.current = true;
         itemsRef.current = [];
         setItems([]);
         lastSpawnRef.current = Date.now();
@@ -45,12 +47,12 @@ export default function MiniGameScreen({ navigation }) {
     };
 
     const gameLoop = () => {
-        if (!isPlaying) return;
+        if (!isPlayingRef.current) return;
 
         const now = Date.now();
-        // Spawn item every 800ms
-        if (now - lastSpawnRef.current > 800) {
-            spawnItem();
+        // Spawn batch every 500ms
+        if (now - lastSpawnRef.current > 500) {
+            spawnBatch();
             lastSpawnRef.current = now;
         }
 
@@ -64,11 +66,15 @@ export default function MiniGameScreen({ navigation }) {
         for (let item of itemsRef.current) {
             item.y += item.speed;
             
-            if (item.y > yThreshold && item.y < yThreshold + 40) {
+            const itemBottom = item.y + ITEM_SIZE;
+            const basketTop = height - 100;
+            const basketBottom = height - 40;
+            
+            if (itemBottom >= basketTop && item.y <= basketBottom) {
                 // Check collision
                 if (item.x > currentBasketX - ITEM_SIZE && item.x < currentBasketX + BASKET_WIDTH) {
                     // Caught
-                    scoreDelta += item.type === 'good' ? 1 : -10;
+                    scoreDelta += item.type === 'good' ? 10 : -100;
                     continue; // remove item
                 }
             }
@@ -88,17 +94,20 @@ export default function MiniGameScreen({ navigation }) {
         requestRef.current = requestAnimationFrame(gameLoop);
     };
 
-    const spawnItem = () => {
-        const isGood = Math.random() > 0.3; // 70% chance of good item
-        const xPos = Math.random() * (width - ITEM_SIZE);
-        itemsRef.current.push({
-            id: Math.random().toString(),
-            x: xPos,
-            y: -ITEM_SIZE,
-            type: isGood ? 'good' : 'bad',
-            speed: Math.random() * 3 + 4,
-            icon: isGood ? 'nutrition' : 'skull'
-        });
+    const spawnBatch = () => {
+        const batchSize = Math.floor(Math.random() * 2) + 1; // 1 to 2 items per batch
+        for(let i=0; i<batchSize; i++) {
+            const isGood = Math.random() > (1 / 6); // 5 to 1 ratio for good vs bad
+            const xPos = Math.random() * (width - ITEM_SIZE);
+            itemsRef.current.push({
+                id: Math.random().toString(),
+                x: xPos,
+                y: -ITEM_SIZE - (Math.random() * 40), // slightly staggered initial Y
+                type: isGood ? 'good' : 'bad',
+                speed: Math.random() * 4 + 5, // slightly faster
+                icon: isGood ? 'nutrition' : 'skull'
+            });
+        }
     };
 
     useEffect(() => {
@@ -118,6 +127,7 @@ export default function MiniGameScreen({ navigation }) {
 
     const endGame = async () => {
         setIsPlaying(false);
+        isPlayingRef.current = false;
         cancelAnimationFrame(requestRef.current);
         
         const finalScore = score > 0 ? score : 0;
@@ -126,7 +136,7 @@ export default function MiniGameScreen({ navigation }) {
             await updateTickets(finalScore);
         }
 
-        Alert.alert('Гру завершено!', `Ви зібрали ${finalScore} тікетів!`, [
+        Alert.alert('Гру завершено!', `Ви отримали ${finalScore} тікетів!`, [
             { text: 'OK', onPress: () => navigation.goBack() }
         ]);
     };
@@ -156,24 +166,36 @@ export default function MiniGameScreen({ navigation }) {
 
             {/* Game Area */}
             {isPlaying ? (
-                <View style={s.gameArea}>
+                <View 
+                    style={s.gameArea}
+                    onMouseMove={Platform.OS === 'web' ? (e) => {
+                        let newX = e.nativeEvent.clientX - BASKET_WIDTH / 2;
+                        if (newX < 0) newX = 0;
+                        if (newX > width - BASKET_WIDTH) newX = width - BASKET_WIDTH;
+                        basketX.setValue(newX);
+                    } : undefined}
+                >
                     {items.map(item => (
                         <View key={item.id} style={[s.item, { left: item.x, top: item.y }]}>
-                            <Icon name={item.icon} size={32} color={item.type === 'good' ? COLORS.success : COLORS.error} />
+                            <Image 
+                                source={item.type === 'good' ? require('../../assets/game_good_product.png') : require('../../assets/game_bad_product.png')}
+                                style={{ width: ITEM_SIZE, height: ITEM_SIZE }}
+                                resizeMode="contain"
+                            />
                         </View>
                     ))}
                     <Animated.View 
                         style={[s.basket, { transform: [{ translateX: basketX }] }]}
                         {...panResponder.panHandlers}
                     >
-                        <Icon name="basket" size={48} color={COLORS.warning} />
+                        <Image source={require('../../assets/game_basket.png')} style={{width: 60, height: 60}} resizeMode="contain" />
                     </Animated.View>
                 </View>
             ) : (
                 <View style={s.center}>
                     <Icon name="game-controller" size={64} color={COLORS.accent} />
-                    <Text style={s.title}>Ловець Тікетів</Text>
-                    <Text style={s.desc}>Збирай корисні продукти (+1) і уникай шкідливих (-10). Зароблені бали стануть тікетами!</Text>
+                    <Text style={s.title}>Ловець Продуктів</Text>
+                    <Text style={s.desc}>Збирай корисні продукти (+10) і уникай шкідливих (-100). Зароблені бали стануть тікетами!</Text>
                     <TouchableOpacity style={s.startBtn} onPress={startGame}>
                         <Text style={s.startBtnText}>Почати гру</Text>
                     </TouchableOpacity>
@@ -198,5 +220,5 @@ const s = StyleSheet.create({
 
     gameArea: { flex: 1, overflow: 'hidden' },
     item: { position: 'absolute', width: ITEM_SIZE, height: ITEM_SIZE, justifyContent: 'center', alignItems: 'center' },
-    basket: { position: 'absolute', bottom: 40, width: BASKET_WIDTH, height: 60, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: RADIUS.md },
+    basket: { position: 'absolute', bottom: 40, width: BASKET_WIDTH, height: 60, justifyContent: 'center', alignItems: 'center' },
 });

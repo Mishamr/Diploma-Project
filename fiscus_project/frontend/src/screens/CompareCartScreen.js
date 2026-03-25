@@ -6,6 +6,7 @@ import { useCart } from '../context/CartContext';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import api from '../api/client';
 import ROUTES from '../constants/routes';
+import * as Location from 'expo-location';
 
 export default function CompareCartScreen({ navigation }) {
     const { items, totalItems } = useCart();
@@ -24,11 +25,28 @@ export default function CompareCartScreen({ navigation }) {
         }
 
         try {
+            let lat = null;
+            let lon = null;
+            
+            try {
+                let { status } = await Location.requestForegroundPermissionsAsync();
+                if (status === 'granted') {
+                    let location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                    lat = location.coords.latitude;
+                    lon = location.coords.longitude;
+                }
+            } catch (locErr) {
+                console.warn('Location error:', locErr);
+            }
+
             const payload = {
                 items: items.map(item => ({
                     product_id: item.productId,
                     quantity: item.quantity
-                }))
+                })),
+                lat: lat,
+                lon: lon,
+                radius: 5.0
             };
 
             const response = await api.post('/compare-cart/', payload);

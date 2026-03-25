@@ -1,0 +1,5 @@
+[flake8]
+max-line-length = 100
+exclude = .venv, .git, __pycache__, build, dist, migrations, node_modules
+ignore = E203, W504, W293, W291, E501
+max-complexity = 10

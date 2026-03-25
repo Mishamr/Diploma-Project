@@ -11,14 +11,10 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.atbmarket.com"
 
-# ─── Category URL → human-readable category name mapping ───
-# ТІЛЬКИ продуктові категорії
 CATEGORY_MAP = {
-    # Акції / Економ / Новинки
     "/catalog/economy": "Економ",
     "/catalog/novetly": "Новинки",
     "/catalog/388-aktsiya-7-dniv": "Акції",
-    # Овочі та фрукти
     "/catalog/287-ovochi-ta-frukti": "Овочі та фрукти",
     "/catalog/446-gorikhi-sukhofrukti": "Горіхи та сухофрукти",
     "/catalog/298-gribi": "Овочі та фрукти",
@@ -26,7 +22,6 @@ CATEGORY_MAP = {
     "/catalog/289-ovochi": "Овочі та фрукти",
     "/catalog/468-solinnya-salati": "Овочі та фрукти",
     "/catalog/288-frukti-yagodi": "Овочі та фрукти",
-    # Бакалія
     "/catalog/285-bakaliya": "Бакалія",
     "/catalog/341-boroshno": "Бакалія",
     "/catalog/444-buterbrodni-masla-zakuski-pasti": "Бакалія",
@@ -44,7 +39,6 @@ CATEGORY_MAP = {
     "/catalog/378-sukhi-snidanki": "Бакалія",
     "/catalog/306-tovari-dlya-vipichki": "Бакалія",
     "/catalog/312-tsukor": "Бакалія",
-    # Молочні продукти та яйця
     "/catalog/molocni-produkti-ta-ajca": "Молочні продукти",
     "/catalog/399-vershki": "Молочні продукти",
     "/catalog/422-dityacha-molochna-produktsiya": "Молочні продукти",
@@ -59,23 +53,19 @@ CATEGORY_MAP = {
     "/catalog/380-sirki-dityachi": "Молочні продукти",
     "/catalog/329-smetana": "Молочні продукти",
     "/catalog/381-yaytsya-kuryachi-perepelini": "Молочні продукти",
-    # Напої безалкогольні
     "/catalog/294-napoi-bezalkogol-ni": "Напої",
     "/catalog/364-yenergetichni": "Напої",
     "/catalog/kvas": "Напої",
     "/catalog/mineralna-i-pitna-voda": "Напої",
     "/catalog/307-napoi": "Напої",
     "/catalog/324-soki-nektari": "Напої",
-    # М'ясо
     "/catalog/maso": "М'ясо",
     "/catalog/421-m-yasni-napivfabrikati": "М'ясо",
     "/catalog/344-m-yaso-okholodzhene": "М'ясо",
-    # Сири
     "/catalog/siri": "Сири",
     "/catalog/402-siri-m-yaki": "Сири",
     "/catalog/439-siri-plavleni": "Сири",
     "/catalog/433-siri-tverdi": "Сири",
-    # Кондитерські вироби
     "/catalog/299-konditers-ki-virobi": "Кондитерські вироби",
     "/catalog/327-batonchiki": "Кондитерські вироби",
     "/catalog/biskviti-ta-deserti": "Кондитерські вироби",
@@ -90,7 +80,6 @@ CATEGORY_MAP = {
     "/catalog/351-torti-i-tistechka": "Кондитерські вироби",
     "/catalog/321-tsukerki": "Кондитерські вироби",
     "/catalog/303-shokolad": "Кондитерські вироби",
-    # Риба та морепродукти
     "/catalog/353-riba-i-moreprodukti": "Риба та морепродукти",
     "/catalog/ikra-ta-ribna-pasta": "Риба та морепродукти",
     "/catalog/406-krabovi-palichki": "Риба та морепродукти",
@@ -98,7 +87,6 @@ CATEGORY_MAP = {
     "/catalog/440-preservi": "Риба та морепродукти",
     "/catalog/riba": "Риба та морепродукти",
     "/catalog/441-ribna-narizka": "Риба та морепродукти",
-    # Хлібобулочні
     "/catalog/325-khlibobulochni-virobi": "Хліб та випічка",
     "/catalog/333-baton": "Хліб та випічка",
     "/catalog/326-bulochni-listkovi-virobi": "Хліб та випічка",
@@ -106,28 +94,23 @@ CATEGORY_MAP = {
     "/catalog/suska-ta-suhari": "Хліб та випічка",
     "/catalog/331-khlib": "Хліб та випічка",
     "/catalog/347-khlibtsi": "Хліб та випічка",
-    # Заморожені продукти
     "/catalog/322-zamorozheni-produkti": "Заморожені продукти",
     "/catalog/356-vareniki-pel-meni-mlintsi": "Заморожені продукти",
     "/catalog/334-morozivo": "Заморожені продукти",
     "/catalog/457-napivfabrikati": "Заморожені продукти",
     "/catalog/452-ovochi-ta-frukti-svizhozamorozheni": "Заморожені продукти",
     "/catalog/430-tisto-vipichka-pitsa": "Заморожені продукти",
-    # Кава та чай
     "/catalog/kava-caj": "Кава та чай",
     "/catalog/286-kava-kakao": "Кава та чай",
     "/catalog/318-chay": "Кава та чай",
-    # Чіпси та снеки
     "/catalog/cipsi-sneki": "Чіпси та снеки",
     "/catalog/sneki": "Чіпси та снеки",
     "/catalog/cipsi": "Чіпси та снеки",
-    # Ковбаса
     "/catalog/360-kovbasa-i-m-yasni-delikatesi": "Ковбаса та делікатеси",
     "/catalog/408-inshi-m-yasni-virobi": "Ковбаса та делікатеси",
     "/catalog/kovbasa": "Ковбаса та делікатеси",
     "/catalog/narizki-ta-delikatesi": "Ковбаса та делікатеси",
     "/catalog/377-sosiski-sardel-ki": "Ковбаса та делікатеси",
-    # Дитяче харчування
     "/catalog/339-dityache-kharchuvannya": "Дитяче харчування",
     "/catalog/367-voda": "Дитяче харчування",
     "/catalog/418-dityache-pechivo": "Дитяче харчування",
@@ -135,11 +118,9 @@ CATEGORY_MAP = {
     "/catalog/366-molochni-sumishi": "Дитяче харчування",
     "/catalog/340-pyure": "Дитяче харчування",
     "/catalog/368-soki-chay": "Дитяче харчування",
-    # Японська кухня
     "/catalog/415-yapons-ka-kukhnya": "Японська кухня",
     "/catalog/416-vasabi-imbir-otset": "Японська кухня",
     "/catalog/464-nori-i-panirovka": "Японська кухня",
-    # Кулінарія
     "/catalog/502-kulinariya": "Кулінарія",
     "/catalog/503-buterbrodi-burgeri": "Кулінарія",
     "/catalog/489-drugi-stravi": "Кулінарія",
@@ -148,7 +129,6 @@ CATEGORY_MAP = {
 
 CATALOG_CATEGORIES = list(CATEGORY_MAP.keys())
 
-# ─── Concurrency settings ───
 MAX_CONCURRENT_CATEGORIES = 3
 MAX_CONCURRENT_PAGES = 3
 MAX_PAGES_PER_CATEGORY = 30
@@ -164,11 +144,9 @@ class ATBScraper:
         self.CATALOG_CATEGORIES = CATALOG_CATEGORIES
 
     def close(self):
-        """Called by main.py after scraping — no-op since session is managed async."""
         pass
 
     def start(self):
-        """Wrapper for celery / sync callers."""
         self.scrape()
 
     def scrape(self):
@@ -184,7 +162,6 @@ class ATBScraper:
     async def _run(self, shop_id_int: int):
         semaphore = asyncio.Semaphore(MAX_CONCURRENT_CATEGORIES)
         
-        # Optimized client (10 concurrent requests, safe but fast)
         client = UniversalScraperClient(
             max_concurrent_requests=10,
             min_jitter=0.3,
@@ -217,7 +194,6 @@ class ATBScraper:
         products = await self._scrape_category(client, semaphore, category_path)
         
         if products:
-            # Deduplicate by external_store_id
             seen = set()
             unique = []
             for p in products:
@@ -235,7 +211,6 @@ class ATBScraper:
             category_name = CATEGORY_MAP.get(category_path, '')
             products = []
 
-            # Fetch page 1 first to know if there are more pages
             page1_products, has_more = await self._fetch_page(client, category_path, 1, category_name)
             products.extend(page1_products)
 
@@ -243,7 +218,6 @@ class ATBScraper:
                 return products
 
             if has_more:
-                # Fetch remaining pages concurrently
                 page_sem = asyncio.Semaphore(MAX_CONCURRENT_PAGES)
                 page_tasks = [
                     self._fetch_page_limited(client, page_sem, category_path, p, category_name)
@@ -319,13 +293,14 @@ class ATBScraper:
         )
         image_url = ""
         if img_elem:
-            # Check data-src (lazy load) then src then data-original
             image_url = (
+                img_elem.get("data-original") or
                 img_elem.get("data-src") or 
                 img_elem.get("src") or 
-                img_elem.get("data-original") or 
                 ""
             )
+            if image_url and any(skip in image_url.lower() for skip in ['no-image', 'placeholder', 'blank', 'data:image']):
+                image_url = ""
         
         if image_url:
             if image_url.startswith("//"):
@@ -333,7 +308,6 @@ class ATBScraper:
             elif not image_url.startswith("http"):
                 image_url = f"{BASE_URL}{image_url}"
 
-        # ── Product URL ─────────────────────────────────────────────────────
         product_url = ""
         if title_elem:
             href = title_elem.get("href")

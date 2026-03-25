@@ -17,7 +17,7 @@ export const ROUTES = {
     SETTINGS: 'Settings',
     COMPARE_CART: 'CompareCart',
     EXPENSE_CALENDAR: 'ExpenseCalendar',
-    MINI_GAME: 'MiniGame',
+    AD_VIDEO: 'AdVideo',
     STORE: 'Store',
     PAYMENT: 'Payment',
 };

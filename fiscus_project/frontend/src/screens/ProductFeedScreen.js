@@ -1,5 +1,5 @@
 /**
- * Product feed — search, filter by category, browse with pagination.
+ * ProductFeedScreen — search, filter by category/chain, browse with pagination.
  */
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
@@ -25,7 +25,7 @@ import { useSettings } from '../context/SettingsContext';
 import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme';
 import GlassCard from '../components/GlassCard';
 
-// Simple debounce hook
+
 function useDebounce(value, delay) {
     const [debouncedValue, setDebouncedValue] = useState(value);
     useEffect(() => {
@@ -35,7 +35,7 @@ function useDebounce(value, delay) {
     return debouncedValue;
 }
 
-// Add-to-cart button with checkmark animation
+
 function AddButton({ onPress }) {
     const [added, setAdded] = useState(false);
     const scale = useRef(new Animated.Value(1)).current;
@@ -70,6 +70,27 @@ function AddButton({ onPress }) {
                 }
             </Animated.View>
         </Pressable>
+    );
+}
+
+
+function ProductImage({ uri, style }) {
+    const [error, setError] = useState(false);
+    if (uri && !error) {
+        return (
+            <Image
+                source={{ uri }}
+                style={style}
+                resizeMode="cover"
+                onError={() => setError(true)}
+            />
+        );
+    }
+    return (
+        <View style={[style, { backgroundColor: COLORS.glassLight, justifyContent: 'center', alignItems: 'center', borderRadius: 8 }]}>
+            <Icon name="image-outline" size={24} color={COLORS.textMuted} />
+            <Text style={{ fontSize: 9, color: COLORS.textMuted, marginTop: 2 }}>Фото</Text>
+        </View>
     );
 }
 
@@ -108,19 +129,13 @@ export default function ProductFeedScreen({ route }) {
         });
     }, [addItem]);
 
+
     const renderProduct = useCallback(({ item }) => (
         <GlassCard style={viewMode === 'grid' ? styles.productCardGrid : styles.productCardList}>
-            {item.image_url ? (
-                <Image
-                    source={{ uri: item.image_url }}
-                    style={viewMode === 'grid' ? styles.productImageGrid : styles.productImage}
-                    resizeMode="cover"
-                />
-            ) : (
-                <View style={[viewMode === 'grid' ? styles.productImageGrid : styles.productImage, styles.productImagePlaceholder, {justifyContent: 'center', alignItems: 'center'}]}>
-                    <Text style={{ fontSize: 10, color: COLORS.textMuted, fontWeight: 'bold' }}>немає ФОТО</Text>
-                </View>
-            )}
+            <ProductImage 
+                uri={item.image_url}
+                style={viewMode === 'grid' ? styles.productImageGrid : styles.productImage}
+            />
 
             <View style={viewMode === 'grid' ? styles.productInfoGrid : styles.productInfo}>
                 <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
@@ -174,11 +189,9 @@ export default function ProductFeedScreen({ route }) {
 
     return (
         <View style={styles.container}>
-            {/* Sticky header: title + search + filters */}
             <View style={styles.stickyHeader}>
                 <Text style={styles.screenTitle}>Продукти</Text>
 
-                {/* Search bar */}
                 <View style={styles.topBar}>
                     <View style={styles.searchBar}>
                         <Icon name="search" size={18} color={COLORS.textMuted} />
@@ -201,7 +214,6 @@ export default function ProductFeedScreen({ route }) {
                     </TouchableOpacity>
                 </View>
 
-                {/* Category chips */}
                 <FlatList
                     horizontal
                     data={allCategories}
@@ -212,7 +224,6 @@ export default function ProductFeedScreen({ route }) {
                     contentContainerStyle={{ paddingHorizontal: SPACING.md }}
                 />
 
-                {/* Chain toggles */}
                 <View style={styles.chainTogglesContainer}>
                     <TouchableOpacity
                         style={[styles.chainToggle, !route?.params?.chain && styles.chainToggleActive]}
@@ -269,7 +280,6 @@ export default function ProductFeedScreen({ route }) {
                 </View>
             </View>
 
-            {/* Products list */}
             {productsLoading ? (
                 <ProductFeedSkeleton count={6} mode={viewMode} />
             ) : (
@@ -325,7 +335,7 @@ const styles = StyleSheet.create({
         ...FONTS.title,
         paddingHorizontal: SPACING.md,
         marginBottom: SPACING.sm,
-        display: 'none', // Hide our custom title if the Navigator is already showing one, or keep it if you want it here instead of the Navigator. I'll hide it to prevent duplicates based on the screenshot showing two "Продукти".
+        display: 'none',
     },
     topBar: {
         flexDirection: 'row',

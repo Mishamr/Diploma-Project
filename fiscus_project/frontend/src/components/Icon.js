@@ -264,6 +264,15 @@ const icons = {
             <Polygon points="22 2 15 22 11 13 2 9 22 2" />
         </Svg>
     ),
+    'coin': (color, size) => (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <Circle cx="12" cy="12" r="10" fill={color} stroke="none" />
+            <Circle cx="12" cy="12" r="7" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" />
+            <Path d="M12 7.5v9" stroke="rgba(255,255,255,0.9)" strokeWidth="2" strokeLinecap="round" />
+            <Path d="M9.5 10.5h5" stroke="rgba(255,255,255,0.9)" strokeWidth="2" strokeLinecap="round" />
+            <Path d="M9.5 13.5h5" stroke="rgba(255,255,255,0.9)" strokeWidth="2" strokeLinecap="round" />
+        </Svg>
+    ),
     'cash-outline': (color, size) => (
         <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <Rect x="2" y="6" width="20" height="12" rx="2" />

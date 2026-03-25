@@ -25,7 +25,7 @@ import InflationScreen from '../screens/InflationScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import CompareCartScreen from '../screens/CompareCartScreen';
 import ExpenseCalendarScreen from '../screens/ExpenseCalendarScreen';
-import MiniGameScreen from '../screens/MiniGameScreen';
+import AdVideoScreen from '../screens/AdVideoScreen';
 import StoreScreen from '../screens/StoreScreen';
 import PaymentScreen from '../screens/PaymentScreen';
 
@@ -205,8 +205,8 @@ export default function AppNavigator() {
                             }}
                         />
                         <Stack.Screen
-                            name={ROUTES.MINI_GAME}
-                            component={MiniGameScreen}
+                            name={ROUTES.AD_VIDEO}
+                            component={AdVideoScreen}
                             options={{
                                 headerShown: false,
                             }}

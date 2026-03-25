@@ -139,6 +139,86 @@ class ShoppingListViewSet(viewsets.ModelViewSet):
         except ShoppingListItem.DoesNotExist:
             return Response({'error': 'Item not found'}, status=status.HTTP_404_NOT_FOUND)
 
+    @action(detail=True, methods=['get'], url_path='smart-calculate')
+    def smart_calculate(self, request, pk=None):
+        """Calculate cheapest store for the entire shopping list based on user location."""
+        shopping_list = self.get_object()
+        lat = request.query_params.get('lat')
+        lon = request.query_params.get('lon')
+        radius_km = float(request.query_params.get('radius', 5.0))
+        
+        from apps.core.models import Store
+        import math
+        
+        def haversine(lon1, lat1, lon2, lat2):
+            """Calculate distance between two GPS coordinates in km."""
+            lon1, lat1, lon2, lat2 = map(math.radians, [lon1, lat1, lon2, lat2])
+            dlon = lon2 - lon1
+            dlat = lat2 - lat1
+            a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+            return 6371 * 2 * math.asin(math.sqrt(a))
+            
+        all_stores = Store.objects.filter(is_active=True).select_related('chain')
+        nearby_stores = []
+        if lat and lon:
+            lat = float(lat)
+            lon = float(lon)
+            for store in all_stores:
+                if store.latitude and store.longitude:
+                    dist = haversine(lon, lat, store.longitude, store.latitude)
+                    if dist <= radius_km:
+                        store.distance = dist
+                        nearby_stores.append(store)
+            nearby_stores.sort(key=lambda s: s.distance)
+        else:
+            nearby_stores = list(all_stores)
+            for s in nearby_stores:
+                s.distance = None
+
+        list_items = shopping_list.items.filter(product__isnull=False).select_related('product')
+        if not list_items.exists():
+            return Response({'error': 'У списку немає товарів для порівняння.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        results = []
+        for store in nearby_stores:
+            store_total = 0.0
+            items_found = 0
+            missing_items = []
+            
+            for list_item in list_items:
+                # Optimized query for store items
+                store_item = store.items.filter(product=list_item.product, in_stock=True).first()
+                if store_item:
+                    latest_price = store_item.prices.order_by('-recorded_at').first()
+                    if latest_price:
+                        store_total += float(latest_price.price) * list_item.quantity
+                        items_found += 1
+                        continue
+                
+                missing_items.append(list_item.product.name)
+            
+            if items_found > 0:
+                results.append({
+                    'store_id': store.id,
+                    'store_name': store.name,
+                    'chain_name': store.chain.name,
+                    'chain_slug': store.chain.slug,
+                    'distance_km': round(store.distance, 2) if store.distance is not None else None,
+                    'total_price': round(store_total, 2),
+                    'items_found': items_found,
+                    'total_items': len(list_items),
+                    'missing_items': missing_items
+                })
+        
+        # Sort by most items found, then lowest total price
+        results.sort(key=lambda x: (-x['items_found'], x['total_price']))
+        
+        return Response({
+            'shopping_list_name': shopping_list.name,
+            'total_list_items': len(list_items),
+            'results': results[:20]
+        })
+
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
@@ -254,57 +334,106 @@ def compare_cart_view(request):
     Returns cost for each chain.
     """
     items_data = request.data.get('items', [])
+    lat = request.data.get('lat')
+    lon = request.data.get('lon')
+    radius_km = float(request.data.get('radius', 5.0))
+    
     if not isinstance(items_data, list):
         return Response({'error': 'items must be a list'}, status=status.HTTP_400_BAD_REQUEST)
 
-    chains_data = {}
-    from apps.core.models import Chain
-    for chain in Chain.objects.filter(is_active=True):
-        chains_data[chain.slug] = {
-            'chain': chain.name,
-            'chain_slug': chain.slug,
-            'total_price': 0.0,
-            'items_found': 0,
-            'missing': [],
-        }
-
+    product_qties = {}
     for item in items_data:
-        product_id = item.get('product_id')
-        qty = int(item.get('quantity', 1))
+        pid = item.get('product_id')
+        if pid:
+            product_qties[pid] = int(item.get('quantity', 1))
 
-        if not product_id:
-            continue
+    if not product_qties:
+        return Response({'total_requested': 0, 'results': []})
 
-        try:
-            product = Product.objects.get(id=product_id)
-        except Product.DoesNotExist:
-            continue
-
-        store_items = StoreItem.objects.filter(
-            product=product, in_stock=True
-        ).select_related('store__chain')
-
-        chain_best_price = {}
-        for si in store_items:
-            latest = si.prices.order_by('-recorded_at').first()
-            if latest:
-                chain_slug = si.store.chain.slug
-                price_val = float(latest.price)
-                if chain_slug not in chain_best_price or price_val < chain_best_price[chain_slug]:
-                    chain_best_price[chain_slug] = price_val
-
-        for c_slug, c_info in chains_data.items():
-            if c_slug in chain_best_price:
-                c_info['total_price'] += chain_best_price[c_slug] * qty
-                c_info['items_found'] += 1
-            else:
-                c_info['missing'].append(product.name)
-
-    results = sorted(list(chains_data.values()), key=lambda x: (-x['items_found'], x['total_price']))
+    products = Product.objects.filter(id__in=product_qties.keys())
     
+    from apps.core.models import Chain, Store
+    
+    results_data = []
+    
+    if lat and lon:
+        import math
+        def haversine(lon1, lat1, lon2, lat2):
+            lon1, lat1, lon2, lat2 = map(math.radians, [lon1, lat1, lon2, lat2])
+            a = math.sin((lat2-lat1)/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin((lon2-lon1)/2)**2
+            return 6371 * 2 * math.asin(math.sqrt(a))
+            
+        lat, lon = float(lat), float(lon)
+        stores = []
+        for store in Store.objects.filter(is_active=True).select_related('chain'):
+            if store.latitude and store.longitude:
+                d = haversine(lon, lat, store.longitude, store.latitude)
+                if d <= radius_km:
+                    store.distance = d
+                    stores.append(store)
+                    
+        for store in stores:
+            store_total = 0.0
+            items_found = 0
+            missing = []
+            
+            for p in products:
+                qty = product_qties[p.id]
+                si = store.items.filter(product=p, in_stock=True).first()
+                if si:
+                    latest = si.prices.order_by('-recorded_at').first()
+                    if latest:
+                        store_total += float(latest.price) * qty
+                        items_found += 1
+                        continue
+                missing.append(p.name)
+                
+            if items_found > 0:
+                results_data.append({
+                    'chain': f"{store.chain.name} ({round(store.distance, 1)} км)",
+                    'chain_slug': store.chain.slug,
+                    'total_price': store_total,
+                    'items_found': items_found,
+                    'missing': missing
+                })
+                
+        results_data.sort(key=lambda x: (-x['items_found'], x['total_price']))
+        
+    else:
+        chains_data = {}
+        for chain in Chain.objects.filter(is_active=True):
+            chains_data[chain.slug] = {
+                'chain': chain.name,
+                'chain_slug': chain.slug,
+                'total_price': 0.0,
+                'items_found': 0,
+                'missing': [],
+            }
+            
+        for p in products:
+            qty = product_qties[p.id]
+            store_items = StoreItem.objects.filter(product=p, in_stock=True).select_related('store__chain')
+            chain_best = {}
+            for si in store_items:
+                latest = si.prices.order_by('-recorded_at').first()
+                if latest:
+                    cslug = si.store.chain.slug
+                    pval = float(latest.price)
+                    if cslug not in chain_best or pval < chain_best[cslug]:
+                        chain_best[cslug] = pval
+                        
+            for c_slug, c_info in chains_data.items():
+                if c_slug in chain_best:
+                    c_info['total_price'] += chain_best[c_slug] * qty
+                    c_info['items_found'] += 1
+                else:
+                    c_info['missing'].append(p.name)
+                    
+        results_data = sorted([c for c in chains_data.values() if c['items_found'] > 0], key=lambda x: (-x['items_found'], x['total_price']))
+
     return Response({
-        'total_requested': len([i for i in items_data if i.get('product_id')]),
-        'results': results
+        'total_requested': len(product_qties),
+        'results': results_data[:15]
     })
 
 
@@ -390,10 +519,11 @@ def ai_chat_view(request):
 
 ПРАВИЛА:
 1. Звертайся до користувача так, як вказано в його профілі (якщо є ім'я).
-2. ОБОВ'ЯЗКОВО враховуй алергії: якщо в контексті є продукт-алерген — ПОПЕРЕДЬ про це.
-3. Будь професійним, але дружнім.
-4. Якщо в контексті є ціни — використовуй їх як істину.
-5. Відповідай коротко, по суті.
+2. ОБОВ'ЯЗКОВО враховуй алергії та обмеження: НІКОЛИ не пропонуй продукти, які користувач не може їсти. 
+3. Якщо користувач просить скласти "здоровий кошик" або "меню", базуй свої списки СУВОРО на його "Особистих побажаннях" та "Алергіях".
+4. Якщо в профілі немає дієтичних побажань, але користувач просить корисні продукти, запропонуй стандартні корисні продукти, але порадь заповнити форму налаштувань.
+5. Завжди давай конкретні пропозиції наявних товарів, якщо їх просять, використовуючи ціни з контексту.
+6. Будь професійним, але дружнім і відповідай по суті.
 
 {'[PRO РЕЖИМ] Надавай ПРІОРИТЕТНІ ПОВНІ відповіді з найдетальніжим аналізом.' if profile.is_pro else ''}
 
