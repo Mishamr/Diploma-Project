@@ -8,9 +8,8 @@ from curl_cffi.requests import AsyncSession, Response
 logger = logging.getLogger(__name__)
 
 # List of valid browser impersonations for curl_cffi (mimics real TLS fingerprints)
-BROWSER_PROFILES = [
-    "chrome110", "chrome101", "chrome124"
-]
+BROWSER_PROFILES = ["chrome110", "chrome101", "chrome124"]
+
 
 class UniversalScraperClient:
     """
@@ -30,18 +29,18 @@ class UniversalScraperClient:
         max_jitter: float = 1.5,
         max_retries: int = 3,
         timeout: int = 20,
-        proxy: str = None
+        proxy: str = None,
     ):
         """
         Ініціалізує клієнта.
-        
+
         Args:
             max_concurrent_requests: Максимальна кількість паралельних з'єднань
             min_jitter: Мінімальна затримка перед запитом (секунди)
             max_jitter: Максимальна затримка перед запитом (секунди)
             max_retries: Скільки разів пробувати повторити при помилці
             timeout: Максимальний час виконання одного запиту
-            proxy: (Опціонально) Рядок підключення до проксі-сервера 
+            proxy: (Опціонально) Рядок підключення до проксі-сервера
         """
         self.semaphore = asyncio.Semaphore(max_concurrent_requests)
         self.min_jitter = min_jitter
@@ -52,14 +51,14 @@ class UniversalScraperClient:
         self.proxies = {"http": proxy, "https": proxy} if proxy else None
 
     async def fetch(
-        self, 
-        url: str, 
-        method: str = "GET", 
-        params: dict = None, 
-        headers: dict = None, 
-        json_data: dict = None, 
-        data=None, 
-        **kwargs
+        self,
+        url: str,
+        method: str = "GET",
+        params: dict = None,
+        headers: dict = None,
+        json_data: dict = None,
+        data=None,
+        **kwargs,
     ) -> Optional[Response]:
         """
         Безпечно виконує HTTP-запит з повним анти-бан захистом.
@@ -75,7 +74,9 @@ class UniversalScraperClient:
                     profile = random.choice(BROWSER_PROFILES)
 
                     # curl_cffi AsyncSession automatically mimics the selected profile
-                    async with AsyncSession(impersonate=profile, proxies=self.proxies) as session:
+                    async with AsyncSession(
+                        impersonate=profile, proxies=self.proxies
+                    ) as session:
                         response = await session.request(
                             method=method,
                             url=url,
@@ -84,7 +85,7 @@ class UniversalScraperClient:
                             json=json_data,
                             data=data,
                             timeout=self.timeout,
-                            **kwargs
+                            **kwargs,
                         )
 
                         # Перевірка на тимчасові блоки (Rate limits / Server errors / WAF blocks)
@@ -95,7 +96,7 @@ class UniversalScraperClient:
                             )
                             if attempt < self.max_retries:
                                 # Exponential backoff: чекаємо 2с, 4с, 8с...
-                                backoff = (2 ** attempt) + random.uniform(0.1, 1.0)
+                                backoff = (2**attempt) + random.uniform(0.1, 1.0)
                                 await asyncio.sleep(backoff)
                                 continue
                             else:
@@ -110,7 +111,7 @@ class UniversalScraperClient:
                         f"(спроба {attempt + 1}/{self.max_retries + 1})"
                     )
                     if attempt < self.max_retries:
-                        backoff = (2 ** attempt) + random.uniform(0.1, 1.0)
+                        backoff = (2**attempt) + random.uniform(0.1, 1.0)
                         await asyncio.sleep(backoff)
                         continue
                     else:

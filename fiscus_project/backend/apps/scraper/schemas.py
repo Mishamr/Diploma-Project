@@ -9,15 +9,16 @@ from pydantic import BaseModel, Field
 
 class ScrapedProduct(BaseModel):
     """Validated scraped product data."""
+
     title: str
     price: float = Field(gt=0)
     old_price: Optional[float] = None
-    image_url: str = ''
+    image_url: str = ""
     in_stock: bool = True
-    chain_name: str = ''
-    external_store_id: str = ''
-    url: str = ''
-    category: str = ''
+    chain_name: str = ""
+    external_store_id: str = ""
+    url: str = ""
+    category: str = ""
 
     # Backward-compatible aliases
     class Config:
@@ -36,16 +37,18 @@ class ScrapedProduct(BaseModel):
 
 class StoreMetadata(BaseModel):
     """Store context for scraping."""
+
     chain_slug: str
     store_id: int
-    external_id: str = ''
-    city: str = 'Київ'
+    external_id: str = ""
+    city: str = "Київ"
     latitude: float = 0.0
     longitude: float = 0.0
 
 
 class ScrapeResult(BaseModel):
     """Result of a scrape job."""
+
     chain_slug: str
     store_id: int
     category_url: str
@@ -54,4 +57,4 @@ class ScrapeResult(BaseModel):
     products: list[ScrapedProduct] = []
     duration_sec: float = 0.0
     success: bool = True
-    error_message: str = ''
+    error_message: str = ""

@@ -18,10 +18,12 @@ _REGISTRY: dict[str, Any] = {}
 
 def register(slug: str):
     """Декоратор для реєстрації скрепера у фабриці."""
+
     def decorator(cls):
         _REGISTRY[slug] = cls
         logger.debug(f"Зареєстровано скрепер: {slug} → {cls.__name__}")
         return cls
+
     return decorator
 
 
@@ -72,6 +74,7 @@ class ScraperFactory:
             try:
                 scraper.scrape()
                 from apps.scraper.services import cleanup_outdated_items
+
                 cleanup_outdated_items(slug)
             except Exception as e:
                 logger.error(f"Помилка скрепера {slug}: {e}")

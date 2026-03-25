@@ -135,10 +135,10 @@ MAX_CONCURRENT_PAGES = 3
 MAX_PAGES_PER_CATEGORY = 30
 
 
-@register('atb')
+@register("atb")
 class ATBScraper:
-    CHAIN_NAME = 'АТБ'
-    CHAIN_SLUG = 'atb'
+    CHAIN_NAME = "АТБ"
+    CHAIN_SLUG = "atb"
 
     def __init__(self, shop_id: str = "1"):
         self.shop_id = shop_id
@@ -162,7 +162,7 @@ class ATBScraper:
 
     async def _run(self, shop_id_int: int):
         semaphore = asyncio.Semaphore(MAX_CONCURRENT_CATEGORIES)
-        
+
         client = UniversalScraperClient(
             max_concurrent_requests=10,
             min_jitter=0.3,
@@ -170,49 +170,84 @@ class ATBScraper:
             max_retries=3,
         )
 
-        print(f"[{self.CHAIN_NAME}] Початок збору даних (async). Магазин ID: {self.shop_id}", flush=True)
-        print(f"[{self.CHAIN_NAME}] Категорій: {len(self.CATALOG_CATEGORIES)} | Паралельно: {MAX_CONCURRENT_CATEGORIES}", flush=True)
+        print(
+            f"[{self.CHAIN_NAME}] Початок збору даних (async). Магазин ID: {self.shop_id}",
+            flush=True,
+        )
+        print(
+            f"[{self.CHAIN_NAME}] Категорій: {len(self.CATALOG_CATEGORIES)} | Паралельно: {MAX_CONCURRENT_CATEGORIES}",
+            flush=True,
+        )
 
         from apps.scraper.services import is_category_scraped
         from asgiref.sync import sync_to_async
+
         is_scraped_async = sync_to_async(is_category_scraped)
         ingest_async = sync_to_async(ingest_scraped_data)
 
         tasks = [
-            self._scrape_and_ingest_category(client, semaphore, cat, shop_id_int, is_scraped_async, ingest_async)
+            self._scrape_and_ingest_category(
+                client, semaphore, cat, shop_id_int, is_scraped_async, ingest_async
+            )
             for cat in self.CATALOG_CATEGORIES
         ]
         await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def _scrape_and_ingest_category(self, client, semaphore, category_path, shop_id_int, is_scraped_async, ingest_async):
-        category_name = CATEGORY_MAP.get(category_path, '')
-        
-        if await is_scraped_async(self.CHAIN_SLUG, shop_id_int, category_name, hours=12):
-            print(f"[{self.CHAIN_NAME}] ПРОПУСК: категорія '{category_name}' (вже оновлена нещодавно).", flush=True)
+    async def _scrape_and_ingest_category(
+        self,
+        client,
+        semaphore,
+        category_path,
+        shop_id_int,
+        is_scraped_async,
+        ingest_async,
+    ):
+        category_name = CATEGORY_MAP.get(category_path, "")
+
+        if await is_scraped_async(
+            self.CHAIN_SLUG, shop_id_int, category_name, hours=12
+        ):
+            print(
+                f"[{self.CHAIN_NAME}] ПРОПУСК: категорія '{category_name}' (вже оновлена нещодавно).",
+                flush=True,
+            )
             return
 
-        print(f"[{self.CHAIN_NAME}] СТАРТ: Збираємо категорію '{category_name}'...", flush=True)
+        print(
+            f"[{self.CHAIN_NAME}] СТАРТ: Збираємо категорію '{category_name}'...",
+            flush=True,
+        )
         products = await self._scrape_category(client, semaphore, category_path)
-        
+
         if products:
             seen = set()
             unique = []
             for p in products:
-                key = p.get('external_store_id')
+                key = p.get("external_store_id")
                 if key and key not in seen:
                     seen.add(key)
                     unique.append(p)
 
-            print(f"[{self.CHAIN_NAME}] ЗБЕРЕЖЕННЯ: {len(unique)} товарів для категорії '{category_name}'...", flush=True)
+            print(
+                f"[{self.CHAIN_NAME}] ЗБЕРЕЖЕННЯ: {len(unique)} товарів для категорії '{category_name}'...",
+                flush=True,
+            )
             await ingest_async(unique, self.CHAIN_SLUG, shop_id_int)
 
-    async def _scrape_category(self, client: UniversalScraperClient, semaphore: asyncio.Semaphore, category_path: str) -> list:
+    async def _scrape_category(
+        self,
+        client: UniversalScraperClient,
+        semaphore: asyncio.Semaphore,
+        category_path: str,
+    ) -> list:
         """Scrape all pages of a category concurrently."""
         async with semaphore:
-            category_name = CATEGORY_MAP.get(category_path, '')
+            category_name = CATEGORY_MAP.get(category_path, "")
             products = []
 
-            page1_products, has_more = await self._fetch_page(client, category_path, 1, category_name)
+            page1_products, has_more = await self._fetch_page(
+                client, category_path, 1, category_name
+            )
             products.extend(page1_products)
 
             if not page1_products:
@@ -221,7 +256,9 @@ class ATBScraper:
             if has_more:
                 page_sem = asyncio.Semaphore(MAX_CONCURRENT_PAGES)
                 page_tasks = [
-                    self._fetch_page_limited(client, page_sem, category_path, p, category_name)
+                    self._fetch_page_limited(
+                        client, page_sem, category_path, p, category_name
+                    )
                     for p in range(2, MAX_PAGES_PER_CATEGORY + 1)
                 ]
                 page_results = await asyncio.gather(*page_tasks, return_exceptions=True)
@@ -237,22 +274,30 @@ class ATBScraper:
 
             return products
 
-    async def _fetch_page_limited(self, client, semaphore, category_path, page, category_name):
+    async def _fetch_page_limited(
+        self, client, semaphore, category_path, page, category_name
+    ):
         async with semaphore:
             return await self._fetch_page(client, category_path, page, category_name)
 
-    async def _fetch_page(self, client: UniversalScraperClient, category_path: str, page: int, category_name: str):
+    async def _fetch_page(
+        self,
+        client: UniversalScraperClient,
+        category_path: str,
+        page: int,
+        category_name: str,
+    ):
         """Fetch and parse a single page using smart client. Returns (products, has_next_page)."""
         url = f"{BASE_URL}{category_path}?page={page}"
 
         response = await client.fetch(url)
-        
+
         if not response or response.status_code != 200:
             return [], False
 
         try:
-            soup = BeautifulSoup(response.text, 'lxml')
-            items = soup.select('article.catalog-item.js-product-container')
+            soup = BeautifulSoup(response.text, "lxml")
+            items = soup.select("article.catalog-item.js-product-container")
 
             if not items:
                 return [], False
@@ -263,16 +308,17 @@ class ATBScraper:
                 if product:
                     products.append(product)
 
-            next_link = soup.select_one('a.product-pagination__link')
-            has_next = next_link is not None and 'disabled' not in next_link.get('class', [])
+            next_link = soup.select_one("a.product-pagination__link")
+            has_next = next_link is not None and "disabled" not in next_link.get(
+                "class", []
+            )
             return products, has_next
 
         except Exception as e:
             logger.warning(f"Error parsing ATB page {url}: {e}")
             return [], False
 
-
-    def _parse_item(self, item, category_name: str = '') -> dict:
+    def _parse_item(self, item, category_name: str = "") -> dict:
         title_elem = item.select_one(".catalog-item__title a")
         title = title_elem.get_text(strip=True) if title_elem else "Unknown"
 
@@ -287,22 +333,25 @@ class ATBScraper:
         old_price = old_price_elem.get("value") if old_price_elem else None
 
         img_elem = (
-            item.select_one("img.catalog-item__img") or 
-            item.select_one(".catalog-item__photo img") or
-            item.select_one("img[data-src]") or
-            item.select_one("img[src]")
+            item.select_one("img.catalog-item__img")
+            or item.select_one(".catalog-item__photo img")
+            or item.select_one("img[data-src]")
+            or item.select_one("img[src]")
         )
         image_url = ""
         if img_elem:
             image_url = (
-                img_elem.get("data-original") or
-                img_elem.get("data-src") or 
-                img_elem.get("src") or 
-                ""
+                img_elem.get("data-original")
+                or img_elem.get("data-src")
+                or img_elem.get("src")
+                or ""
             )
-            if image_url and any(skip in image_url.lower() for skip in ['no-image', 'placeholder', 'blank', 'data:image']):
+            if image_url and any(
+                skip in image_url.lower()
+                for skip in ["no-image", "placeholder", "blank", "data:image"]
+            ):
                 image_url = ""
-        
+
         if image_url:
             if image_url.startswith("//"):
                 image_url = f"https:{image_url}"
@@ -315,7 +364,9 @@ class ATBScraper:
             if href:
                 product_url = href if href.startswith("http") else f"{BASE_URL}{href}"
 
-        desc_elem = item.select_one(".catalog-item__info") or item.select_one(".catalog-item__weight")
+        desc_elem = item.select_one(".catalog-item__info") or item.select_one(
+            ".catalog-item__weight"
+        )
         description = desc_elem.get_text(strip=True) if desc_elem else ""
 
         try:

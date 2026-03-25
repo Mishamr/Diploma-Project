@@ -60,6 +60,7 @@ MAX_PAGES_PER_CATEGORY = 5
 
 # ─── Helpers ───
 
+
 def _parse_price(text: str):
     """Extract float price from text like '49,90 ₴'."""
     if not text:
@@ -80,6 +81,7 @@ def _page_url(category_path: str, page: int) -> str:
 
 
 # ─── HTML Parsers ───
+
 
 def _extract_total_pages(html: str) -> int:
     """Find the highest page number in pagination links."""
@@ -116,14 +118,16 @@ def _parse_products_from_html(html: str, category_name: str) -> list[dict]:
         href = link.get("href", "")
         url = BASE_URL + href if href.startswith("/") else href
 
-        actual_el = card.select_one("span.ProductFooterActions_price_value_actual__OJfRq")
+        actual_el = card.select_one(
+            "span.ProductFooterActions_price_value_actual__OJfRq"
+        )
         old_el = card.select_one("span.ProductFooterActions_price_value_old__AlzSM")
         actual = _parse_price(actual_el.get_text(strip=True)) if actual_el else None
         old = _parse_price(old_el.get_text(strip=True)) if old_el else None
         card_prices[url] = (actual, old)
 
     products = []
-    
+
     # Scrape cards directly
     for card in soup.select("div.ProductCard_root__XrdQ7"):
         link = card.select_one("a.ProductCard_data__name__KS_Lq")
@@ -138,28 +142,31 @@ def _parse_products_from_html(html: str, category_name: str) -> list[dict]:
         img_el = card.select_one("div.ProductImage_photo__FOicA img")
         slug = href.rstrip("/").split("/")[-1] if href else ""
 
-        products.append({
-            "external_store_id": slug,
-            "title": link.get_text(strip=True),
-            "price": actual,
-            "old_price": old,
-            "image_url": img_el["src"] if img_el and img_el.get("src") else "",
-            "url": url,
-            "description": "",
-            "category": category_name,
-            "is_sale": old is not None and old > actual,
-            "in_stock": True,
-        })
+        products.append(
+            {
+                "external_store_id": slug,
+                "title": link.get_text(strip=True),
+                "price": actual,
+                "old_price": old,
+                "image_url": img_el["src"] if img_el and img_el.get("src") else "",
+                "url": url,
+                "description": "",
+                "category": category_name,
+                "is_sale": old is not None and old > actual,
+                "in_stock": True,
+            }
+        )
 
     return products
 
 
 # ─── Scraper Class ───
 
-@register('auchan')
+
+@register("auchan")
 class AuchanScraper:
-    CHAIN_NAME = 'Ашан'
-    CHAIN_SLUG = 'auchan'
+    CHAIN_NAME = "Ашан"
+    CHAIN_SLUG = "auchan"
 
     def __init__(self, shop_id: str = "1"):
         self.shop_id = shop_id
@@ -191,54 +198,88 @@ class AuchanScraper:
             max_retries=3,
         )
 
-        print(f"[{self.CHAIN_NAME}] Початок збору даних (async). Магазин ID: {self.shop_id}", flush=True)
-        print(f"[{self.CHAIN_NAME}] Категорій: {len(CATALOG_CATEGORIES)} | Паралельно: {MAX_CONCURRENT_CATEGORIES}", flush=True)
+        print(
+            f"[{self.CHAIN_NAME}] Початок збору даних (async). Магазин ID: {self.shop_id}",
+            flush=True,
+        )
+        print(
+            f"[{self.CHAIN_NAME}] Категорій: {len(CATALOG_CATEGORIES)} | Паралельно: {MAX_CONCURRENT_CATEGORIES}",
+            flush=True,
+        )
 
         from apps.scraper.services import is_category_scraped
         from asgiref.sync import sync_to_async
+
         is_scraped_async = sync_to_async(is_category_scraped)
         ingest_async = sync_to_async(ingest_scraped_data)
 
         tasks = [
-            self._scrape_and_ingest_category(client, semaphore, cat_path, shop_id_int, is_scraped_async, ingest_async)
+            self._scrape_and_ingest_category(
+                client, semaphore, cat_path, shop_id_int, is_scraped_async, ingest_async
+            )
             for cat_path in CATALOG_CATEGORIES
         ]
         await asyncio.gather(*tasks, return_exceptions=True)
 
-    async def _scrape_and_ingest_category(self, client, semaphore, category_path, shop_id_int, is_scraped_async, ingest_async):
-        category_name = CATEGORY_MAP.get(category_path, category_path.strip("/").split("/")[-1])
-        
-        if await is_scraped_async(self.CHAIN_SLUG, shop_id_int, category_name, hours=12):
-            print(f"[{self.CHAIN_NAME}] ПРОПУСК: категорія '{category_name}' (вже оновлена нещодавно).", flush=True)
+    async def _scrape_and_ingest_category(
+        self,
+        client,
+        semaphore,
+        category_path,
+        shop_id_int,
+        is_scraped_async,
+        ingest_async,
+    ):
+        category_name = CATEGORY_MAP.get(
+            category_path, category_path.strip("/").split("/")[-1]
+        )
+
+        if await is_scraped_async(
+            self.CHAIN_SLUG, shop_id_int, category_name, hours=12
+        ):
+            print(
+                f"[{self.CHAIN_NAME}] ПРОПУСК: категорія '{category_name}' (вже оновлена нещодавно).",
+                flush=True,
+            )
             return
 
-        print(f"[{self.CHAIN_NAME}] СТАРТ: Збираємо категорію '{category_name}'...", flush=True)
+        print(
+            f"[{self.CHAIN_NAME}] СТАРТ: Збираємо категорію '{category_name}'...",
+            flush=True,
+        )
         products = await self._scrape_category(client, semaphore, category_path)
-        
+
         if products:
             # Deduplicate by external_store_id
             seen = set()
             unique = []
             for p in products:
-                key = p.get('external_store_id')
+                key = p.get("external_store_id")
                 if key and key not in seen:
                     seen.add(key)
                     unique.append(p)
 
-            print(f"[{self.CHAIN_NAME}] ЗБЕРЕЖЕННЯ: {len(unique)} товарів для категорії '{category_name}'...", flush=True)
+            print(
+                f"[{self.CHAIN_NAME}] ЗБЕРЕЖЕННЯ: {len(unique)} товарів для категорії '{category_name}'...",
+                flush=True,
+            )
             await ingest_async(unique, self.CHAIN_SLUG, shop_id_int)
 
     async def _scrape_category(self, client, semaphore, category_path):
         """Scrape all pages of a category."""
         async with semaphore:
-            category_name = CATEGORY_MAP.get(category_path, category_path.strip("/").split("/")[-1])
+            category_name = CATEGORY_MAP.get(
+                category_path, category_path.strip("/").split("/")[-1]
+            )
             products = []
 
             # Fetch page 1
             url = _page_url(category_path, 1)
             response = await client.fetch(url)
             if not response or response.status_code != 200:
-                logger.warning(f"[{self.CHAIN_NAME}] Failed to fetch {url}: {response.status_code if response else 'None'}")
+                logger.warning(
+                    f"[{self.CHAIN_NAME}] Failed to fetch {url}: {response.status_code if response else 'None'}"
+                )
                 return products
 
             html = response.text

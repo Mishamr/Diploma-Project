@@ -9,7 +9,7 @@ class IsOwner(BasePermission):
     """Only allow owners of an object to access it."""
 
     def has_object_permission(self, request, view, obj):
-        if hasattr(obj, 'user'):
+        if hasattr(obj, "user"):
             return obj.user == request.user
         return False
 

@@ -29,6 +29,7 @@ def run_scraper(chain_slug: str, shop_id: str = "1"):
         scraper.scrape()
 
         from .services import cleanup_outdated_items
+
         cleanup_outdated_items(chain_slug)
     finally:
         scraper.close()
