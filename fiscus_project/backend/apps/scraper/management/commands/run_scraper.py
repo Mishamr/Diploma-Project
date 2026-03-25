@@ -7,6 +7,7 @@ Usage:
 """
 
 import logging
+
 from django.core.management.base import BaseCommand
 
 logger = logging.getLogger(__name__)
@@ -36,8 +37,8 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        from apps.scraper.main import run_scraper, run_all
         from apps.core.models import Chain, Store
+        from apps.scraper.main import run_all, run_scraper
 
         shop_id_input = options.get('shop_id')
 

@@ -5,9 +5,11 @@ Takes scraped data, matches products, saves prices.
 
 import logging
 from decimal import Decimal
+
+from apps.core.models import Category, Chain, Price, Product, Store, StoreItem
 from django.utils import timezone
 from django.utils.text import slugify
-from apps.core.models import Chain, Store, Product, StoreItem, Price, Category
+
 from .matcher import ProductMatcher
 from .schemas import ScrapedProduct
 

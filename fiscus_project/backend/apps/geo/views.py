@@ -2,14 +2,14 @@
 Geo views — store locations and nearest store search.
 """
 
+from apps.api.serializers import StoreSerializer
+from apps.core.models import Store
+from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
-from rest_framework import status
 
-from apps.core.models import Store
-from apps.api.serializers import StoreSerializer
-from .services import find_nearest_stores, find_cheapest_basket_stores
+from .services import find_cheapest_basket_stores, find_nearest_stores
 
 
 @api_view(['GET'])

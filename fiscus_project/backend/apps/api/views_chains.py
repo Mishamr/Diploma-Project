@@ -2,14 +2,14 @@
 Chain views — DB-only queries, no live scraping.
 """
 
-from rest_framework import viewsets, status
-from rest_framework.decorators import api_view, permission_classes, action
+from apps.core.models import Chain, Price, Store, StoreItem
+from apps.geo.services import find_nearest_store
+from rest_framework import status, viewsets
+from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
-from apps.core.models import Chain, Store, StoreItem, Price
-from apps.geo.services import find_nearest_store
-from .serializers import ChainSerializer, StoreSerializer, StoreItemSerializer
+from .serializers import ChainSerializer, StoreItemSerializer, StoreSerializer
 
 
 class ChainViewSet(viewsets.ReadOnlyModelViewSet):

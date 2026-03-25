@@ -2,6 +2,7 @@ import asyncio
 import logging
 import random
 from typing import Optional
+
 from curl_cffi.requests import AsyncSession, Response
 
 logger = logging.getLogger(__name__)

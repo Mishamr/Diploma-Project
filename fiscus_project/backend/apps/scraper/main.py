@@ -7,8 +7,9 @@ Scraper main runner.
     run_all()                    # всі зареєстровані мережі
 """
 
-import sys
 import logging
+import sys
+
 from .stores import ScraperFactory
 
 logger = logging.getLogger(__name__)

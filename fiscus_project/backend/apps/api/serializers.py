@@ -2,12 +2,10 @@
 API serializers for Fiscus models.
 """
 
-from rest_framework import serializers
+from apps.core.models import (Category, Chain, Price, Product, ShoppingList,
+                              ShoppingListItem, Store, StoreItem, UserProfile)
 from django.contrib.auth.models import User
-from apps.core.models import (
-    Chain, Store, Category, Product, StoreItem,
-    Price, ShoppingList, ShoppingListItem, UserProfile,
-)
+from rest_framework import serializers
 
 
 class ChainSerializer(serializers.ModelSerializer):

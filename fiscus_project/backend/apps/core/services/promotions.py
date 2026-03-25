@@ -2,9 +2,10 @@
 Promotions service — finds current deals and discounts.
 """
 
-from django.utils import timezone
 from datetime import timedelta
+
 from apps.core.models import Price, StoreItem
+from django.utils import timezone
 
 
 def get_top_promotions(limit=20, chain_slug=None):

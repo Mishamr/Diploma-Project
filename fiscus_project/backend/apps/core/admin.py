@@ -1,8 +1,7 @@
 from django.contrib import admin
-from .models import (
-    Chain, Store, Category, Product, StoreItem,
-    Price, ShoppingList, ShoppingListItem, UserProfile,
-)
+
+from .models import (Category, Chain, Price, Product, ShoppingList,
+                     ShoppingListItem, Store, StoreItem, UserProfile)
 
 
 @admin.register(Chain)

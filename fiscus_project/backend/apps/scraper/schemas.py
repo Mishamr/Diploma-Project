@@ -2,8 +2,9 @@
 Pydantic schemas for scraper data validation.
 """
 
-from pydantic import BaseModel, Field
 from typing import Optional
+
+from pydantic import BaseModel, Field
 
 
 class ScrapedProduct(BaseModel):

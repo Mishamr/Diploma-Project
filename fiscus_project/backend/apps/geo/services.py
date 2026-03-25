@@ -3,6 +3,7 @@ Geo services — Haversine distance, nearest store lookup.
 """
 
 import math
+
 from apps.core.models import Store
 
 
@@ -79,7 +80,7 @@ def find_cheapest_basket_stores(lat: float, lon: float, product_ids: list[int],
     """
     Find stores with the cheapest total for a list of products.
     """
-    from apps.core.models import StoreItem, Price
+    from apps.core.models import Price, StoreItem
 
     nearby = find_nearest_stores(lat, lon, limit=20)
 

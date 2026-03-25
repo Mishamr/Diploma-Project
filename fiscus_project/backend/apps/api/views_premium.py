@@ -3,15 +3,14 @@ Premium views — inflation analytics.
 """
 
 from datetime import timedelta
-from django.utils import timezone
-from django.db.models import Avg, Count
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import AllowAny
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
 
-from apps.core.models import Price, Product, Chain, Purchase
+from apps.core.models import Chain, Price, Product, Purchase
+from django.db.models import Avg, Count
+from django.utils import timezone
+from rest_framework import status
+from rest_framework.decorators import api_view, permission_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
 
 
 @api_view(['GET'])
@@ -175,8 +174,8 @@ def expense_calendar_view(request):
     GET /api/v1/analytics/calendar/
     Aggregate purchases by month/year for the current user.
     """
-    from django.db.models.functions import ExtractMonth, ExtractYear
     from django.db.models import Sum
+    from django.db.models.functions import ExtractMonth, ExtractYear
 
     purchases = Purchase.objects.filter(user=request.user)
     

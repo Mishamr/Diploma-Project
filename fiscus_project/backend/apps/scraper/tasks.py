@@ -3,8 +3,9 @@ Celery tasks for scraping.
 Використовує ScraperFactory для запуску скреперів.
 """
 
-import time
 import logging
+import time
+
 from celery import shared_task
 from django.utils import timezone
 

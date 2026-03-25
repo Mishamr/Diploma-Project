@@ -2,31 +2,31 @@
 Main API views — products, shopping lists, promotions, survival.
 """
 
-from django.db.models import Q
-from rest_framework import viewsets, status
-from rest_framework.decorators import api_view, permission_classes, action
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework.response import Response
+import json
 import os
 import urllib.request
-import json
-from dotenv import load_dotenv
 from pathlib import Path
+
+from django.db.models import Q
+from dotenv import load_dotenv
+from rest_framework import status, viewsets
+from rest_framework.decorators import action, api_view, permission_classes
+from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.response import Response
 
 # Load env variables from root .env
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 load_dotenv(dotenv_path=PROJECT_ROOT / '.env')
 
-from apps.core.models import (
-    Product, StoreItem, Price, ShoppingList, ShoppingListItem, Category,
-)
-from apps.core.services.survival import generate_survival_basket, get_ai_substitutions
-from apps.core.services.promotions import get_top_promotions, get_price_history
-from .serializers import (
-    ProductSerializer, ProductWithPricesSerializer,
-    ShoppingListSerializer, ShoppingListItemSerializer,
-    CategorySerializer,
-)
+from apps.core.models import (Category, Price, Product, ShoppingList,
+                              ShoppingListItem, StoreItem)
+from apps.core.services.promotions import get_price_history, get_top_promotions
+from apps.core.services.survival import (generate_survival_basket,
+                                         get_ai_substitutions)
+
+from .serializers import (CategorySerializer, ProductSerializer,
+                          ProductWithPricesSerializer,
+                          ShoppingListItemSerializer, ShoppingListSerializer)
 
 
 class ProductViewSet(viewsets.ReadOnlyModelViewSet):
@@ -147,8 +147,9 @@ class ShoppingListViewSet(viewsets.ModelViewSet):
         lon = request.query_params.get('lon')
         radius_km = float(request.query_params.get('radius', 5.0))
         
-        from apps.core.models import Store
         import math
+
+        from apps.core.models import Store
         
         def haversine(lon1, lat1, lon2, lat2):
             """Calculate distance between two GPS coordinates in km."""

@@ -1,11 +1,12 @@
 import asyncio
 import logging
-from bs4 import BeautifulSoup
-from asgiref.sync import async_to_sync
 
 from apps.scraper.services import ingest_scraped_data
-from .factory import register
+from asgiref.sync import async_to_sync
+from bs4 import BeautifulSoup
+
 from .client import UniversalScraperClient
+from .factory import register
 
 logger = logging.getLogger(__name__)
 

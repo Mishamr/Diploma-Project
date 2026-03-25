@@ -4,18 +4,19 @@ Uses Gemini to generate optimal shopping lists from real DB products
 and recommend per-item substitutions in real time.
 """
 
-from decimal import Decimal
+import json
+import logging
 import math
 import os
-import urllib.request
-import json
 import re
-import logging
 import urllib.error
-from django.db.models import Q
-from apps.core.models import Product, Price, StoreItem
-from dotenv import load_dotenv
+import urllib.request
+from decimal import Decimal
 from pathlib import Path
+
+from apps.core.models import Price, Product, StoreItem
+from django.db.models import Q
+from dotenv import load_dotenv
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
 load_dotenv(dotenv_path=PROJECT_ROOT / '.env')

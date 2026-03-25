@@ -3,8 +3,8 @@ Product matcher — fuzzy matching across chains.
 Replaces unreliable EAN extraction with name + weight + brand matching.
 """
 
-import re
 import logging
+import re
 from typing import Optional
 
 logger = logging.getLogger(__name__)

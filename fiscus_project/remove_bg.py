@@ -1,5 +1,7 @@
-from PIL import Image
 import sys
+
+from PIL import Image
+
 
 def remove_background(filepath):
     try:
