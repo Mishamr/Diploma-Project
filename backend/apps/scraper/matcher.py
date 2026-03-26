@@ -7,6 +7,8 @@ import logging
 import re
 from typing import Optional
 
+from apps.core.models import Product
+
 logger = logging.getLogger(__name__)
 
 # Weight patterns in Ukrainian product names
@@ -137,8 +139,6 @@ class ProductMatcher:
         4. Weight + brand cross-check
         5. Return best match or create new Product
         """
-        from apps.core.models import Product
-
         normalized = self.normalize(scraped_name)
         features = self.extract_features(scraped_name)
 

@@ -9,7 +9,7 @@ from decimal import Decimal
 from django.utils import timezone
 from django.utils.text import slugify
 
-from apps.core.models import Category, Chain, Price, Product, Store, StoreItem
+from apps.core.models import Category, Price, Store, StoreItem
 
 from .matcher import ProductMatcher
 from .schemas import ScrapedProduct

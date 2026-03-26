@@ -23,5 +23,6 @@ pydantic>=2.5
 
 pytest>=7.4
 pytest-django>=4.7
+bandit>=1.7
 
 gunicorn>=21.2

@@ -4,7 +4,6 @@ Auth views — registration, login, logout, profile, Google OAuth.
 
 import logging
 
-from django.conf import settings
 from django.contrib.auth import authenticate
 from django.contrib.auth.models import User
 
@@ -165,7 +164,7 @@ def logout_view(request):
     """POST /api/v1/auth/logout/"""
     try:
         request.user.auth_token.delete()
-    except Exception:
+    except Exception:  # nosec B110
         pass
     return Response({"message": "Logged out"}, status=status.HTTP_200_OK)
 

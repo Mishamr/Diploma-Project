@@ -6,7 +6,7 @@ from datetime import timedelta
 
 from django.utils import timezone
 
-from apps.core.models import Price, StoreItem
+from apps.core.models import Price
 
 
 def get_top_promotions(limit=20, chain_slug=None):

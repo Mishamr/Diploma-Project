@@ -26,3 +26,7 @@ skip = ["migrations"]
 known_django = ["django"]
 known_third_party = ["rest_framework", "celery", "dotenv", "pydantic", "bs4", "thefuzz"]
 sections = ["FUTURE", "STDLIB", "DJANGO", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+
+[tool.bandit]
+exclude_dirs = [".venv", "venv", "apps/core/migrations", "tests"]
+skips = []

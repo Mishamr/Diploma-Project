@@ -16,7 +16,7 @@ from pathlib import Path
 
 from django.db.models import Q
 
-from apps.core.models import Price, Product, StoreItem
+from apps.core.models import Price, Product
 from dotenv import load_dotenv
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent.parent
@@ -194,7 +194,7 @@ def _call_ai_provider(prompt, max_tokens=1024, temperature=0.3):
             },
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=30) as resp:  # nosec B310
             data = json.loads(resp.read())
 
         if "choices" in data:
@@ -265,7 +265,7 @@ def _ai_generate_shopping_list(budget, days, products_summary):
 """
 
     try:
-        response = _call_gemini(prompt, max_tokens=1500, temperature=0.3)
+        response = _call_ai_provider(prompt, max_tokens=1500, temperature=0.3)
         return _parse_json_from_response(response)
     except Exception as e:
         logger.error(f"Survival AI generation failed: {e}")
@@ -292,7 +292,7 @@ def _ai_analyze_basket(basket_items, budget, days, total_cost):
 Оціни збалансованість, вигідність, можливості заощадити.
 Кожен пункт з нового рядка. Без смайликів та емодзі. Без зірочок markdown."""
 
-    response = _call_gemini(prompt, max_tokens=400, temperature=0.7)
+    response = _call_ai_provider(prompt, max_tokens=400, temperature=0.7)
     if response:
         return [line.strip() for line in response.split("\n") if line.strip()]
     return ["Порада: Налаштуйте GEMINI_API_KEY для отримання AI-аналізу."]
@@ -343,7 +343,7 @@ def get_ai_substitutions(
   ...
 ]"""
 
-    response = _call_gemini(prompt, max_tokens=600, temperature=0.4)
+    response = _call_ai_provider(prompt, max_tokens=600, temperature=0.4)
     ai_picks = _parse_json_from_response(response)
 
     if not ai_picks:
@@ -422,7 +422,7 @@ def generate_survival_basket(budget=5000, days=7, lat=None, lon=None, chain=None
     if ai_picks:
         try:
             tips = _ai_analyze_basket(basket_items, budget, days, float(total_cost))
-        except:
+        except Exception:
             tips = [
                 "AI тимчасово недоступний для аналізу, але кошик сформовано за базовим алгоритмом."
             ]

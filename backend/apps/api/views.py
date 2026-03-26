@@ -21,7 +21,6 @@ load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
 
 from apps.core.models import (
     Category,
-    Price,
     Product,
     ShoppingList,
     ShoppingListItem,
@@ -556,7 +555,7 @@ def get_ai_context(query, user=None):
             if person_info:
                 context_parts.append("\nПРОФІЛЬ КОРИСТУВАЧА:")
                 context_parts.extend(person_info)
-        except:
+        except Exception:  # nosec B110
             pass
 
     return "\n".join(context_parts)
@@ -632,7 +631,7 @@ def ai_chat_view(request):
             },
             method="POST",
         )
-        with urllib.request.urlopen(req, timeout=30) as resp:
+        with urllib.request.urlopen(req, timeout=30) as resp:  # nosec B310
             data = json.loads(resp.read())
 
         if "choices" in data:
@@ -651,7 +650,7 @@ def ai_chat_view(request):
             return Response(
                 {"error": body.get("error", {}).get("message", str(e))}, status=e.code
             )
-        except:
+        except Exception:
             return Response({"error": f"HTTP Error {e.code}"}, status=e.code)
     except Exception as e:
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

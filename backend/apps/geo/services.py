@@ -86,7 +86,7 @@ def find_cheapest_basket_stores(
     """
     Find stores with the cheapest total for a list of products.
     """
-    from apps.core.models import Price, StoreItem
+    from apps.core.models import StoreItem
 
     nearby = find_nearest_stores(lat, lon, limit=20)
 

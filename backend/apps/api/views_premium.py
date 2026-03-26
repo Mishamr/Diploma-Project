@@ -7,7 +7,7 @@ from datetime import timedelta
 from django.db.models import Avg, Count
 from django.utils import timezone
 
-from apps.core.models import Chain, Price, Product, Purchase
+from apps.core.models import Chain, Price, Purchase
 from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
@@ -76,7 +76,6 @@ def price_index_view(request):
     two_months_ago = now - timedelta(days=60)
 
     current_prices = {}
-    previous_prices = {}
 
     for cat_key, cat_info in SURVIVAL_CATEGORIES.items():
         # Current month average

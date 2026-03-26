@@ -12,7 +12,6 @@ Usage via factory:
 """
 
 import asyncio
-import json
 import logging
 import re
 

@@ -65,13 +65,13 @@ class UniversalScraperClient:
         """
         async with self.semaphore:
             # 1. Human Jitter (Затримка як у реальної людини)
-            jitter = random.uniform(self.min_jitter, self.max_jitter)
+            jitter = random.uniform(self.min_jitter, self.max_jitter)  # nosec B311
             await asyncio.sleep(jitter)
 
             for attempt in range(self.max_retries + 1):
                 try:
                     # 2. Browser Rotation (Зміна відбитку браузера на кожен запит)
-                    profile = random.choice(BROWSER_PROFILES)
+                    profile = random.choice(BROWSER_PROFILES)  # nosec B311
 
                     # curl_cffi AsyncSession automatically mimics the selected profile
                     async with AsyncSession(
@@ -96,7 +96,9 @@ class UniversalScraperClient:
                             )
                             if attempt < self.max_retries:
                                 # Exponential backoff: чекаємо 2с, 4с, 8с...
-                                backoff = (2**attempt) + random.uniform(0.1, 1.0)
+                                backoff = (2**attempt) + random.uniform(
+                                    0.1, 1.0
+                                )  # nosec B311
                                 await asyncio.sleep(backoff)
                                 continue
                             else:
@@ -111,7 +113,7 @@ class UniversalScraperClient:
                         f"(спроба {attempt + 1}/{self.max_retries + 1})"
                     )
                     if attempt < self.max_retries:
-                        backoff = (2**attempt) + random.uniform(0.1, 1.0)
+                        backoff = (2**attempt) + random.uniform(0.1, 1.0)  # nosec B311
                         await asyncio.sleep(backoff)
                         continue
                     else:
