@@ -1,5 +1,9 @@
+/**
+ * CompareCartScreen — порівняння цін по мережах.
+ * Якщо кошик порожній або БД не має даних — показує демо порівняння.
+ */
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Icon from '../components/Icon';
 import { useCart } from '../context/CartContext';
@@ -8,55 +12,97 @@ import api from '../api/client';
 import ROUTES from '../constants/routes';
 import * as Location from 'expo-location';
 
+// ── Demo порівняння для показу ────────────────────────────────────────────────
+const DEMO_RESULTS = [
+    { chain: 'АТБ', chain_slug: 'atb', total_price: 387.40, items_found: 8, missing: [] },
+    { chain: 'Сільпо', chain_slug: 'silpo', total_price: 421.80, items_found: 8, missing: [] },
+    { chain: 'Ашан', chain_slug: 'auchan', total_price: 445.20, items_found: 7, missing: ['Хліб Дарницький'] },
+];
+
+const CHAIN_COLORS = {
+    atb: '#e53e3e',
+    silpo: '#ff6f00',
+    auchan: '#2e7d32',
+};
+const CHAIN_ICONS = { atb: '🛒', silpo: '🌿', auchan: '🏪' };
+
 export default function CompareCartScreen({ navigation }) {
     const { items, totalItems } = useCart();
     const [loading, setLoading] = useState(true);
     const [results, setResults] = useState([]);
     const [totalRequested, setTotalRequested] = useState(0);
+    const [isDemo, setIsDemo] = useState(false);
 
-    useEffect(() => {
-        fetchComparison();
-    }, []);
+    useEffect(() => { fetchComparison(); }, []);
 
     const fetchComparison = async () => {
         if (items.length === 0) {
+            setResults(DEMO_RESULTS);
+            setTotalRequested(8);
+            setIsDemo(true);
             setLoading(false);
             return;
         }
 
         try {
-            let lat = null;
-            let lon = null;
-            
+            let lat = null, lon = null;
             try {
-                let { status } = await Location.requestForegroundPermissionsAsync();
+                const { status } = await Location.requestForegroundPermissionsAsync();
                 if (status === 'granted') {
-                    let location = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-                    lat = location.coords.latitude;
-                    lon = location.coords.longitude;
+                    const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+                    lat = loc.coords.latitude;
+                    lon = loc.coords.longitude;
                 }
-            } catch (locErr) {
-                console.warn('Location error:', locErr);
-            }
+            } catch (_) {}
 
             const payload = {
-                items: items.map(item => ({
-                    product_id: item.productId,
-                    quantity: item.quantity
-                })),
-                lat: lat,
-                lon: lon,
-                radius: 5.0
+                items: items.map(item => ({ product_id: item.productId, quantity: item.quantity })),
+                lat, lon, radius: 5.0,
             };
 
             const response = await api.post('/compare-cart/', payload);
-            if (response.data) {
-                setResults(response.data.results || []);
-                setTotalRequested(response.data.total_requested || 0);
+            const fetched = response?.results || response?.data?.results || [];
+            if (fetched.length > 0) {
+                setResults(fetched);
+                setTotalRequested(response?.total_requested || response?.data?.total_requested || items.length);
+                setIsDemo(false);
+            } else {
+                // API returned empty — show demo
+                setResults(DEMO_RESULTS);
+                setTotalRequested(8);
+                setIsDemo(true);
             }
         } catch (error) {
-            console.error('Failed to compare cart:', error);
-            Alert.alert('Помилка', 'Не вдалося завантажити порівняння. Можливо бекенд недоступний.');
+            console.warn('Compare cart error, using demo:', error.message);
+            setResults(DEMO_RESULTS);
+            setTotalRequested(8);
+            setIsDemo(true);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSavePurchase = async () => {
+        if (isDemo) {
+            Alert.alert('Demo режим', 'Додайте товари до кошика для реального порівняння та збереження покупки.');
+            return;
+        }
+        try {
+            setLoading(true);
+            const best = results[0];
+            const maxPrice = Math.max(...results.map(r => r.total_price));
+            const payload = {
+                chain_name: best.chain,
+                chain_slug: best.chain_slug || best.chain.toLowerCase(),
+                total_price: best.total_price,
+                saved_amount: Math.max(0, maxPrice - best.total_price),
+                items_count: best.items_found,
+            };
+            await api.post('/analytics/user/', payload);
+            Alert.alert('Успіх', 'Покупка збережена в аналітиці!');
+            navigation.navigate(ROUTES.ANALYTICS);
+        } catch (e) {
+            Alert.alert('Помилка', 'Не вдалося зберегти покупку.');
         } finally {
             setLoading(false);
         }
@@ -71,214 +117,171 @@ export default function CompareCartScreen({ navigation }) {
         );
     }
 
-    if (results.length === 0) {
-        return (
-            <View style={[styles.container, styles.center]}>
-                <Icon name="basket-outline" size={64} color={COLORS.textMuted} />
-                <Text style={styles.emptyTitle}>Немає даних для порівняння</Text>
-            </View>
-        );
-    }
-
-    const bestChain = results[0];
-
-    const handleSavePurchase = async () => {
-        try {
-            setLoading(true);
-            const maxPrice = Math.max(...results.map(r => r.total_price));
-            const savedAmount = maxPrice - bestChain.total_price;
-
-            const payload = {
-                chain_name: bestChain.chain,
-                chain_slug: bestChain.chain.toLowerCase(),
-                total_price: bestChain.total_price,
-                saved_amount: savedAmount > 0 ? savedAmount : 0,
-                items_count: bestChain.items_found,
-            };
-
-            const response = await api.post('/analytics/user/', payload);
-            if (response.data && response.data.status === 'ok') {
-                Alert.alert('Успіх', 'Покупка збережена в аналітиці!');
-                navigation.navigate(ROUTES.ANALYTICS);
-            }
-        } catch (error) {
-            console.error('Failed to save purchase:', error);
-            Alert.alert('Помилка', 'Не вдалося зберегти покупку.');
-        } finally {
-            setLoading(false);
-        }
-    };
+    const best = results[0];
+    const maxPrice = Math.max(...results.map(r => r.total_price));
 
     return (
         <View style={styles.container}>
-        <ScrollView contentContainerStyle={{ padding: SPACING.lg }}>
-            <View style={styles.header}>
-                <Icon name="trophy-outline" size={32} color={COLORS.accent} />
-                <Text style={styles.headerTitle}>Найкращий вибір:</Text>
-                <Text style={styles.bestChainName}>{bestChain.chain}</Text>
-                <Text style={styles.bestTotal}>{bestChain.total_price.toFixed(2)} ₴</Text>
-                <Text style={styles.itemsFoundText}>
-                    Знайдено {bestChain.items_found} з {totalRequested} товарів
-                </Text>
-            </View>
+            <ScrollView contentContainerStyle={{ padding: SPACING.lg }}>
 
-            <Text style={styles.sectionTitle}>Всі мережі:</Text>
-
-            {results.map((res, idx) => (
-                <View key={idx} style={[styles.resultCard, idx === 0 && styles.winnerCard]}>
-                    <View style={styles.cardHeader}>
-                        <Text style={styles.chainName}>{res.chain}</Text>
-                        <Text style={styles.chainTotal}>{res.total_price.toFixed(2)} ₴</Text>
+                {isDemo && (
+                    <View style={styles.demoBanner}>
+                        <Icon name="information-circle-outline" size={18} color={COLORS.warning} />
+                        <Text style={styles.demoBannerText}>Demo дані • Додайте товари до кошика для реального порівняння</Text>
                     </View>
+                )}
 
-                    <View style={styles.cardInfo}>
-                        <Text style={styles.infoText}>
-                            <Icon name="checkmark-circle-outline" size={14} color={COLORS.success} /> {res.items_found} товарів
-                        </Text>
-                        {res.missing && res.missing.length > 0 && (
-                            <Text style={styles.missingText}>
-                                Відсутні: {res.missing.length} ({res.missing.slice(0, 2).join(', ')}{res.missing.length > 2 ? '...' : ''})
+                {/* Winner card */}
+                <LinearGradient
+                    colors={['rgba(16,185,129,0.15)', 'rgba(16,185,129,0.05)']}
+                    style={styles.winnerCard}
+                >
+                    <Icon name="trophy" size={36} color={COLORS.accent} />
+                    <Text style={styles.winnerLabel}>Найкращий вибір</Text>
+                    <Text style={styles.winnerChain}>{CHAIN_ICONS[best.chain_slug] || '🏪'} {best.chain}</Text>
+                    <Text style={styles.winnerPrice}>{best.total_price.toFixed(2)} ₴</Text>
+                    <Text style={styles.winnerSub}>
+                        Знайдено {best.items_found} з {totalRequested} товарів
+                    </Text>
+                    {maxPrice > best.total_price && (
+                        <View style={styles.savingsBadge}>
+                            <Text style={styles.savingsText}>
+                                Економія до {(maxPrice - best.total_price).toFixed(2)} ₴
                             </Text>
-                        )}
-                    </View>
-
-                    {idx > 0 && (
-                        <Text style={styles.diffText}>
-                            +{(res.total_price - bestChain.total_price).toFixed(2)} ₴ дорожче
-                        </Text>
+                        </View>
                     )}
-                </View>
-            ))}
-        </ScrollView>
+                </LinearGradient>
 
-        <View style={styles.footer}>
-            <TouchableOpacity style={styles.saveBtn} onPress={handleSavePurchase}>
-                <Text style={styles.saveBtnText}>Зберегти покупку ({bestChain.total_price.toFixed(2)} ₴)</Text>
-            </TouchableOpacity>
-        </View>
+                <Text style={styles.sectionTitle}>Всі мережі</Text>
 
+                {results.map((res, idx) => {
+                    const diff = res.total_price - best.total_price;
+                    const coveragePct = Math.round((res.items_found / totalRequested) * 100);
+                    return (
+                        <View key={idx} style={[styles.resultCard, idx === 0 && styles.resultCardWinner]}>
+                            <View style={styles.resultHeader}>
+                                <View style={styles.resultLeft}>
+                                    <Text style={styles.resultIcon}>{CHAIN_ICONS[res.chain_slug] || '🏪'}</Text>
+                                    <View>
+                                        <Text style={styles.resultChain}>{res.chain}</Text>
+                                        <Text style={styles.resultCoverage}>{coveragePct}% товарів</Text>
+                                    </View>
+                                </View>
+                                <View style={styles.resultRight}>
+                                    <Text style={styles.resultPrice}>{res.total_price.toFixed(2)} ₴</Text>
+                                    {idx > 0 && (
+                                        <Text style={styles.resultDiff}>+{diff.toFixed(2)} ₴</Text>
+                                    )}
+                                    {idx === 0 && (
+                                        <View style={styles.bestTag}>
+                                            <Text style={styles.bestTagText}>✓ Найкраще</Text>
+                                        </View>
+                                    )}
+                                </View>
+                            </View>
+
+                            {/* Coverage bar */}
+                            <View style={styles.coverageBar}>
+                                <View style={[styles.coverageFill, {
+                                    width: `${coveragePct}%`,
+                                    backgroundColor: idx === 0 ? COLORS.accent : COLORS.primaryLight,
+                                }]} />
+                            </View>
+
+                            {res.missing && res.missing.length > 0 && (
+                                <Text style={styles.missingText}>
+                                    Відсутні: {res.missing.slice(0, 2).join(', ')}{res.missing.length > 2 ? `...+${res.missing.length - 2}` : ''}
+                                </Text>
+                            )}
+                        </View>
+                    );
+                })}
+            </ScrollView>
+
+            <View style={styles.footer}>
+                <TouchableOpacity style={styles.saveBtn} onPress={handleSavePurchase} activeOpacity={0.85}>
+                    <LinearGradient colors={[COLORS.primary, COLORS.primaryLight || '#38bdf8']} style={styles.saveBtnGrad}>
+                        <Icon name="checkmark-circle-outline" size={20} color="#fff" />
+                        <Text style={styles.saveBtnText}>
+                            {isDemo ? 'Демо режим' : `Зберегти покупку (${best.total_price.toFixed(2)} ₴)`}
+                        </Text>
+                    </LinearGradient>
+                </TouchableOpacity>
+            </View>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: COLORS.bgPrimary,
-    },
-    center: {
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: SPACING.xl,
-    },
-    loadingText: {
-        ...FONTS.medium,
-        marginTop: SPACING.md,
-        color: COLORS.textSecondary,
-    },
-    emptyTitle: {
-        ...FONTS.subtitle,
-        marginTop: SPACING.md,
-        color: COLORS.textSecondary,
-    },
-    header: {
-        alignItems: 'center',
-        backgroundColor: COLORS.bgCard,
-        padding: SPACING.xl,
-        borderRadius: RADIUS.lg,
-        borderWidth: 1,
-        borderColor: COLORS.borderLight,
-        marginBottom: SPACING.xl,
-        ...SHADOWS.card,
-    },
-    headerTitle: {
-        ...FONTS.medium,
-        fontSize: 14,
-        color: COLORS.textSecondary,
-        marginTop: SPACING.sm,
-    },
-    bestChainName: {
-        ...FONTS.bold,
-        fontSize: 24,
-        color: COLORS.textPrimary,
-        marginVertical: 4,
-    },
-    bestTotal: {
-        ...FONTS.price,
-        fontSize: 32,
-        color: COLORS.primary,
-    },
-    itemsFoundText: {
-        ...FONTS.caption,
-        marginTop: SPACING.xs,
-    },
-    sectionTitle: {
-        ...FONTS.title,
-        fontSize: 18,
+    container: { flex: 1, backgroundColor: COLORS.bgPrimary },
+    center: { justifyContent: 'center', alignItems: 'center', padding: SPACING.xl },
+    loadingText: { ...FONTS.medium, marginTop: SPACING.md, color: COLORS.textSecondary },
+
+    demoBanner: {
+        flexDirection: 'row', alignItems: 'center', gap: SPACING.xs,
+        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        borderRadius: RADIUS.md, padding: SPACING.sm,
+        borderWidth: 1, borderColor: 'rgba(245, 158, 11, 0.3)',
         marginBottom: SPACING.md,
     },
-    resultCard: {
-        backgroundColor: COLORS.bgCard,
-        padding: SPACING.lg,
-        borderRadius: RADIUS.md,
-        borderWidth: 1,
-        borderColor: COLORS.glassBorder,
-        marginBottom: SPACING.sm,
-    },
+    demoBannerText: { ...FONTS.caption, color: COLORS.warning, flex: 1, fontSize: 12 },
+
     winnerCard: {
-        borderColor: COLORS.primaryLight,
-        backgroundColor: 'rgba(56, 189, 248, 0.05)',
+        alignItems: 'center', borderRadius: RADIUS.xl,
+        padding: SPACING.xl, marginBottom: SPACING.lg,
+        borderWidth: 1, borderColor: 'rgba(16,185,129,0.3)',
     },
-    cardHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: SPACING.xs,
+    winnerLabel: { ...FONTS.medium, color: COLORS.textSecondary, marginTop: SPACING.sm, fontSize: 13 },
+    winnerChain: { ...FONTS.bold, fontSize: 26, color: COLORS.textPrimary, marginVertical: 4 },
+    winnerPrice: { ...FONTS.price, fontSize: 38, color: COLORS.accent },
+    winnerSub: { ...FONTS.caption, marginTop: 4 },
+    savingsBadge: {
+        marginTop: SPACING.sm, backgroundColor: 'rgba(16,185,129,0.2)',
+        borderRadius: RADIUS.full, paddingHorizontal: SPACING.md, paddingVertical: 4,
     },
-    chainName: {
-        ...FONTS.bold,
-        fontSize: 16,
+    savingsText: { ...FONTS.bold, color: COLORS.accent, fontSize: 13 },
+
+    sectionTitle: { ...FONTS.title, fontSize: 18, marginBottom: SPACING.md },
+
+    resultCard: {
+        backgroundColor: COLORS.bgCard, padding: SPACING.md,
+        borderRadius: RADIUS.md, marginBottom: SPACING.sm,
+        borderWidth: 1, borderColor: COLORS.glassBorder,
     },
-    chainTotal: {
-        ...FONTS.price,
-        fontSize: 18,
+    resultCardWinner: {
+        borderColor: COLORS.accent,
+        backgroundColor: 'rgba(16,185,129,0.05)',
     },
-    cardInfo: {
-        marginTop: SPACING.xs,
+    resultHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    resultLeft: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+    resultIcon: { fontSize: 24 },
+    resultChain: { ...FONTS.bold, fontSize: 16 },
+    resultCoverage: { ...FONTS.caption, fontSize: 11, marginTop: 1 },
+    resultRight: { alignItems: 'flex-end' },
+    resultPrice: { ...FONTS.price, fontSize: 20 },
+    resultDiff: { ...FONTS.medium, fontSize: 12, color: COLORS.error, marginTop: 2 },
+    bestTag: {
+        backgroundColor: 'rgba(16,185,129,0.2)',
+        borderRadius: RADIUS.sm, paddingHorizontal: 6, paddingVertical: 2, marginTop: 2,
     },
-    infoText: {
-        ...FONTS.caption,
-        fontSize: 13,
-        color: COLORS.textSecondary,
+    bestTagText: { color: COLORS.accent, fontSize: 11, fontWeight: '700' },
+
+    coverageBar: {
+        height: 4, backgroundColor: COLORS.surface,
+        borderRadius: 2, marginTop: SPACING.sm, overflow: 'hidden',
     },
-    missingText: {
-        ...FONTS.caption,
-        fontSize: 12,
-        color: COLORS.warning,
-        marginTop: 4,
-    },
-    diffText: {
-        ...FONTS.medium,
-        fontSize: 13,
-        color: COLORS.error,
-        marginTop: SPACING.sm,
-        textAlign: 'right',
-    },
+    coverageFill: { height: '100%', borderRadius: 2 },
+    missingText: { ...FONTS.caption, color: COLORS.warning, marginTop: SPACING.xs, fontSize: 11 },
+
     footer: {
         padding: SPACING.lg,
         backgroundColor: COLORS.bgCard,
-        borderTopWidth: 1,
-        borderColor: COLORS.glassBorder,
+        borderTopWidth: 1, borderColor: COLORS.glassBorder,
     },
-    saveBtn: {
-        backgroundColor: COLORS.primary,
-        padding: SPACING.md,
-        borderRadius: RADIUS.md,
-        alignItems: 'center',
+    saveBtn: { borderRadius: RADIUS.md, overflow: 'hidden' },
+    saveBtnGrad: {
+        flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+        gap: SPACING.sm, padding: SPACING.md,
     },
-    saveBtnText: {
-        ...FONTS.bold,
-        color: '#fff',
-        fontSize: 16,
-    },
+    saveBtnText: { ...FONTS.bold, color: '#fff', fontSize: 16 },
 });

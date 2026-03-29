@@ -1,5 +1,6 @@
 /**
- * App navigator — auth flow + bottom tabs with Gemini theme.
+ * App navigator — auth flow + bottom tabs, light purple minimalist theme.
+ * Tab bar uses proper Ionicons. Screen content has no icons.
  */
 
 import React from 'react';
@@ -46,7 +47,7 @@ function MainTabs() {
                             iconName = focused ? 'search' : 'search-outline';
                             break;
                         case ROUTES.SHOPPING_LIST:
-                            iconName = focused ? 'calculator' : 'calculator-outline';
+                            iconName = focused ? 'cart' : 'cart-outline';
                             break;
                         case ROUTES.ANALYTICS:
                             iconName = focused ? 'bar-chart' : 'bar-chart-outline';
@@ -62,11 +63,12 @@ function MainTabs() {
                 tabBarActiveTintColor: COLORS.primary,
                 tabBarInactiveTintColor: COLORS.textMuted,
                 tabBarStyle: {
-                    backgroundColor: COLORS.bgSecondary,
-                    borderTopColor: COLORS.glassBorder,
+                    backgroundColor: COLORS.bgCard,
+                    borderTopColor: COLORS.border,
                     borderTopWidth: 1,
-                    paddingBottom: 4,
-                    height: 60,
+                    paddingBottom: 6,
+                    paddingTop: 4,
+                    height: 62,
                 },
                 tabBarLabelStyle: {
                     fontSize: 10,
@@ -75,11 +77,14 @@ function MainTabs() {
                 headerStyle: {
                     backgroundColor: COLORS.bgPrimary,
                     elevation: 0,
-                    boxShadow: 'none',
+                    shadowOpacity: 0,
+                    borderBottomWidth: 1,
+                    borderBottomColor: COLORS.border,
                 },
-                headerTintColor: COLORS.textPrimary,
+                headerTintColor: COLORS.primary,
                 headerTitleStyle: {
                     fontWeight: '700',
+                    color: COLORS.textPrimary,
                 },
             })}
         >
@@ -112,6 +117,19 @@ function MainTabs() {
     );
 }
 
+const STACK_HEADER = {
+    headerStyle: {
+        backgroundColor: COLORS.bgPrimary,
+        elevation: 0,
+        shadowOpacity: 0,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
+    },
+    headerTintColor: COLORS.primary,
+    headerTitleStyle: { fontWeight: '700', color: COLORS.textPrimary },
+    headerBackTitle: 'Назад',
+};
+
 export default function AppNavigator() {
     const { isAuthenticated, loading } = useAuth();
 
@@ -120,13 +138,13 @@ export default function AppNavigator() {
     return (
         <NavigationContainer
             theme={{
-                dark: true,
+                dark: false,
                 colors: {
                     primary: COLORS.primary,
                     background: COLORS.bgPrimary,
-                    card: COLORS.bgSecondary,
+                    card: COLORS.bgCard,
                     text: COLORS.textPrimary,
-                    border: COLORS.glassBorder,
+                    border: COLORS.border,
                     notification: COLORS.error,
                 },
             }}
@@ -137,100 +155,16 @@ export default function AppNavigator() {
                 ) : (
                     <>
                         <Stack.Screen name={ROUTES.MAIN} component={MainTabs} />
-                        <Stack.Screen
-                            name={ROUTES.SETTINGS}
-                            component={SettingsScreen}
-                            options={{
-                                headerShown: false,
-                            }}
-                        />
-                        <Stack.Screen
-                            name={ROUTES.MAP}
-                            component={MapScreen}
-                            options={{
-                                headerShown: true,
-                                title: 'Карта магазинів',
-                                headerStyle: { backgroundColor: COLORS.bgPrimary },
-                                headerTintColor: COLORS.textPrimary,
-                            }}
-                        />
-                        <Stack.Screen
-                            name={ROUTES.PROMOTIONS}
-                            component={PromotionsScreen}
-                            options={{
-                                headerShown: true,
-                                title: 'Акції',
-                                headerStyle: { backgroundColor: COLORS.bgPrimary },
-                                headerTintColor: COLORS.textPrimary,
-                            }}
-                        />
-                        <Stack.Screen
-                            name={ROUTES.SURVIVAL}
-                            component={SurvivalScreen}
-                            options={{
-                                headerShown: true,
-                                title: 'Режим виживання',
-                                headerStyle: { backgroundColor: COLORS.bgPrimary },
-                                headerTintColor: COLORS.textPrimary,
-                            }}
-                        />
-                        <Stack.Screen
-                            name={ROUTES.INFLATION}
-                            component={InflationScreen}
-                            options={{
-                                headerShown: true,
-                                title: 'Аналітика цін',
-                                headerStyle: { backgroundColor: COLORS.bgPrimary },
-                                headerTintColor: COLORS.textPrimary,
-                            }}
-                        />
-                        <Stack.Screen
-                            name={ROUTES.COMPARE_CART}
-                            component={CompareCartScreen}
-                            options={{
-                                headerShown: true,
-                                title: 'Порівняння кошика',
-                                headerStyle: { backgroundColor: COLORS.bgPrimary },
-                                headerTintColor: COLORS.textPrimary,
-                            }}
-                        />
-                        <Stack.Screen
-                            name={ROUTES.EXPENSE_CALENDAR}
-                            component={ExpenseCalendarScreen}
-                            options={{
-                                headerShown: true,
-                                title: 'Календар витрат',
-                                headerStyle: { backgroundColor: COLORS.bgPrimary },
-                                headerTintColor: COLORS.textPrimary,
-                            }}
-                        />
-                        <Stack.Screen
-                            name={ROUTES.AD_VIDEO}
-                            component={AdVideoScreen}
-                            options={{
-                                headerShown: false,
-                            }}
-                        />
-                        <Stack.Screen
-                            name={ROUTES.STORE}
-                            component={StoreScreen}
-                            options={{
-                                headerShown: true,
-                                title: 'Магазин Тікетів',
-                                headerStyle: { backgroundColor: COLORS.bgPrimary },
-                                headerTintColor: COLORS.textPrimary,
-                            }}
-                        />
-                        <Stack.Screen
-                            name={ROUTES.PAYMENT}
-                            component={PaymentScreen}
-                            options={{
-                                headerShown: true,
-                                title: 'Оформлення PRO',
-                                headerStyle: { backgroundColor: COLORS.bgPrimary },
-                                headerTintColor: COLORS.textPrimary,
-                            }}
-                        />
+                        <Stack.Screen name={ROUTES.SETTINGS} component={SettingsScreen} options={{ headerShown: false }} />
+                        <Stack.Screen name={ROUTES.MAP} component={MapScreen} options={{ headerShown: true, title: 'Карта магазинів', ...STACK_HEADER }} />
+                        <Stack.Screen name={ROUTES.PROMOTIONS} component={PromotionsScreen} options={{ headerShown: true, title: 'Акції', ...STACK_HEADER }} />
+                        <Stack.Screen name={ROUTES.SURVIVAL} component={SurvivalScreen} options={{ headerShown: true, title: 'Режим виживання', ...STACK_HEADER }} />
+                        <Stack.Screen name={ROUTES.INFLATION} component={InflationScreen} options={{ headerShown: true, title: 'Аналітика цін', ...STACK_HEADER }} />
+                        <Stack.Screen name={ROUTES.COMPARE_CART} component={CompareCartScreen} options={{ headerShown: true, title: 'Порівняння кошика', ...STACK_HEADER }} />
+                        <Stack.Screen name={ROUTES.EXPENSE_CALENDAR} component={ExpenseCalendarScreen} options={{ headerShown: true, title: 'Календар витрат', ...STACK_HEADER }} />
+                        <Stack.Screen name={ROUTES.AD_VIDEO} component={AdVideoScreen} options={{ headerShown: false }} />
+                        <Stack.Screen name={ROUTES.STORE} component={StoreScreen} options={{ headerShown: true, title: 'Магазин тікетів', ...STACK_HEADER }} />
+                        <Stack.Screen name={ROUTES.PAYMENT} component={PaymentScreen} options={{ headerShown: true, title: 'Оформлення PRO', ...STACK_HEADER }} />
                     </>
                 )}
             </Stack.Navigator>

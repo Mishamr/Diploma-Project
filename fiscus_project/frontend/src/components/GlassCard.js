@@ -1,14 +1,10 @@
-/**
- * GlassCard — reusable glassmorphism card container.
- */
-
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { COLORS, RADIUS, SHADOWS } from '../constants/theme';
+import { COLORS, RADIUS, SPACING, SHADOWS } from '../constants/theme';
 
-export default function GlassCard({ children, style, glow = false }) {
+export default function GlassCard({ children, style, ...props }) {
     return (
-        <View style={[styles.card, glow && SHADOWS.glow, style]}>
+        <View style={[styles.card, style]} {...props}>
             {children}
         </View>
     );
@@ -16,11 +12,11 @@ export default function GlassCard({ children, style, glow = false }) {
 
 const styles = StyleSheet.create({
     card: {
-        backgroundColor: COLORS.glass,
-        borderWidth: 1,
-        borderColor: COLORS.glassBorder,
+        backgroundColor: COLORS.bgCard,
         borderRadius: RADIUS.lg,
-        padding: 16,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        padding: SPACING.md,
         ...SHADOWS.card,
     },
 });

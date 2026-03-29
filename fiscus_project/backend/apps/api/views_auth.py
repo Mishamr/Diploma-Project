@@ -27,6 +27,7 @@ def register_view(request):
     serializer = RegisterSerializer(data=request.data)
     if serializer.is_valid():
         user = serializer.save()
+        logger.info(f"User registered: {user.username} (ID: {user.id})")
         token, _ = Token.objects.get_or_create(user=user)
         return Response(
             {
@@ -39,6 +40,7 @@ def register_view(request):
             },
             status=status.HTTP_201_CREATED,
         )
+    logger.warning(f"Registration failed: {serializer.errors}")
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
@@ -48,11 +50,13 @@ def login_view(request):
     """POST /api/v1/auth/login/"""
     serializer = LoginSerializer(data=request.data)
     if serializer.is_valid():
+        username = serializer.validated_data["username"]
         user = authenticate(
-            username=serializer.validated_data["username"],
+            username=username,
             password=serializer.validated_data["password"],
         )
         if user:
+            logger.info(f"User logged in: {user.username}")
             token, _ = Token.objects.get_or_create(user=user)
             return Response(
                 {
@@ -64,10 +68,12 @@ def login_view(request):
                     },
                 }
             )
+        logger.warning(f"Login failed for user: {username}")
         return Response(
             {"error": "Невірний логін або пароль"},
             status=status.HTTP_401_UNAUTHORIZED,
         )
+    logger.warning(f"Login validation failed: {serializer.errors}")
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 

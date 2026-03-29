@@ -28,6 +28,22 @@ function cartReducer(state, action) {
             return { ...state, items: [...state.items, { ...action.item, quantity: 1 }] };
         }
 
+        case 'ADD_BULK': {
+            const newItems = [...state.items];
+            action.items.forEach((newItem) => {
+                const existingIndex = newItems.findIndex(i => i.productId === newItem.productId);
+                if (existingIndex >= 0) {
+                    newItems[existingIndex] = {
+                        ...newItems[existingIndex],
+                        quantity: newItems[existingIndex].quantity + newItem.quantity
+                    };
+                } else {
+                    newItems.push({ ...newItem });
+                }
+            });
+            return { ...state, items: newItems };
+        }
+
         case 'REMOVE_ITEM':
             return {
                 ...state,
@@ -59,6 +75,7 @@ export function CartProvider({ children }) {
     const [state, dispatch] = useReducer(cartReducer, initialState);
 
     const addItem = (item) => dispatch({ type: 'ADD_ITEM', item });
+    const addBulkItems = (items) => dispatch({ type: 'ADD_BULK', items });
     const removeItem = (productId) => dispatch({ type: 'REMOVE_ITEM', productId });
     const updateQuantity = (productId, quantity) =>
         dispatch({ type: 'UPDATE_QUANTITY', productId, quantity });
@@ -77,6 +94,7 @@ export function CartProvider({ children }) {
         totalItems,
         totalPrice,
         addItem,
+        addBulkItems,
         removeItem,
         updateQuantity,
         clearCart,

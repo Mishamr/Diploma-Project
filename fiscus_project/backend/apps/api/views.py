@@ -3,9 +3,12 @@ Main API views — products, shopping lists, promotions, survival.
 """
 
 import json
+import logging
 import os
 import urllib.request
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 from django.db.models import Q
 
@@ -27,7 +30,11 @@ from apps.core.models import (
     StoreItem,
 )
 from apps.core.services.promotions import get_price_history, get_top_promotions
-from apps.core.services.survival import generate_survival_basket, get_ai_substitutions
+from apps.core.services.survival import (
+    call_ai_provider,
+    generate_survival_basket,
+    get_ai_substitutions,
+)
 
 from .serializers import (
     CategorySerializer,
@@ -274,15 +281,15 @@ def promotions_view(request):
 @permission_classes([IsAuthenticated])
 def survival_basket_view(request):
     """GET /api/v1/survival/ — budget survival basket."""
-    profile = request.user.profile
-    if not profile.is_pro:
-        if profile.tickets < 1:
-            return Response(
-                {"error": "Недостатньо тікетів"},
-                status=status.HTTP_402_PAYMENT_REQUIRED,
-            )
-        profile.tickets -= 1
-        profile.save(update_fields=["tickets"])
+    # profile = request.user.profile
+    # if not profile.is_pro:
+    #     if profile.tickets < 1:
+    #         return Response(
+    #             {"error": "Недостатньо тікетів"},
+    #             status=status.HTTP_402_PAYMENT_REQUIRED,
+    #         )
+    #     profile.tickets -= 1
+    #     profile.save(update_fields=["tickets"])
 
     budget = float(request.query_params.get("budget", 5000))
     days = int(request.query_params.get("days", 7))
@@ -575,82 +582,50 @@ def ai_chat_view(request):
     context_extra = request.data.get(
         "context", ""
     )  # Renamed to avoid confusion with system prompt context
-    api_key = os.environ.get("OPENROUTER_API_KEY", "")
-    if not api_key:
+    api_key_groq = os.environ.get("GROQ_API_KEY", "")
+    api_key_or = os.environ.get("OPENROUTER_API_KEY", "")
+    api_key_gemini = os.environ.get("GEMINI_API_KEY", "")
+    if not api_key_groq and not api_key_or and not api_key_gemini:
         return Response(
-            {"error": "OpenRouter API key not configured"},
+            {"error": "AI API keys not configured. Add GROQ_API_KEY to .env"},
             status=status.HTTP_503_SERVICE_UNAVAILABLE,
         )
-
-    OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
     # Fetch smart context from DB
     db_context = get_ai_context(message, request.user)
 
-    system_prompt = f"""Ти — професійний консультант магазину Fiscus.
-Твоє завдання: надавати ТОЧНІ та КОНКРЕТНІ відповіді про ціни, акції та товари.
-Ти знаєш ситуацію в усіх мережах (АТБ, Сільпо та ін.).
+    system_prompt = f"""Ти — професійний та емпатичний фінансовий і дієтологічний консультант додатку Fiscus.
+Твоє головне завдання: допомагати користувачеві приймати найкращі рішення щодо покупок, економії грошей та збалансованого харчування.
+Ти ідеально орієнтуєшся в цінах мереж (АТБ, Сільпо, Ашан), знаєш усі акції та вмієш знаходити приховані можливості для заощаджень.
 
-ПРАВИЛА:
-1. Звертайся до користувача так, як вказано в його профілі (якщо є ім'я).
-2. ОБОВ'ЯЗКОВО враховуй алергії та обмеження: НІКОЛИ не пропонуй продукти, які користувач не може їсти. 
-3. Якщо користувач просить скласти "здоровий кошик" або "меню", базуй свої списки СУВОРО на його "Особистих побажаннях" та "Алергіях".
-4. Якщо в профілі немає дієтичних побажань, але користувач просить корисні продукти, запропонуй стандартні корисні продукти, але порадь заповнити форму налаштувань.
-5. Завжди давай конкретні пропозиції наявних товарів, якщо їх просять, використовуючи ціни з контексту.
-6. Будь професійним, але дружнім і відповідай по суті.
+ПРАВИЛА ТВОЄЇ РОБОТИ:
+1. Завжди звертайся до користувача з повагою, теплотою і як справжній експерт. Якщо є ім'я у профілі — використовуй його.
+2. СУВОРО враховуй усі медичні та дієтичні обмеження (алергії, непереносимість): НІКОЛИ не рекомендуй те, що може зашкодити користувачу!
+3. Завжди підкріплюй свої поради конкретними товарами з бази. Не кажи абстрактне "купіть макарони", а кажи "Ось макарони від ТМ Pasta у Сільпо за 34.00 ₴".
+4. Якщо запит стосується здоров'я, спочатку перевіряй наявність дієти у налаштуваннях. Якщо її немає — делікатно порадь заповнити особистий профіль.
+5. Розписуй свої відповіді структуровано: використовуй списки, короткі абзаци та виділяй головні цифри.
+6. Будь проактивним: окрім відповіді на питання, порадь 1-2 додаткові хитрощі для заощадження!
 
-{'[PRO РЕЖИМ] Надавай ПРІОРИТЕТНІ ПОВНІ відповіді з найдетальніжим аналізом.' if profile.is_pro else ''}
+{'[PRO РЕЖИМ АКТИВНИЙ: Ти повинен надати максимально глибокий та всебічний фінансовий аналіз.]' if profile.is_pro else ''}
 
-КОНТЕКСТ З БАЗИ ДАНИХ:
+ДАНІ ПРОФІЛЮ ТА ТОП ТОВАРИ (БАЗА ДАНИХ):
 {db_context}
 
-ДОДАТКОВИЙ КОНТЕКСТ:
+ПОТОЧНИЙ КОНТЕКСТ КОРИСТУВАЧА (ЕКРАН/КОШИК):
 {context_extra}"""
 
-    payload = json.dumps(
-        {
-            "model": "google/gemini-2.0-flash-001",
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": message},
-            ],
-            "temperature": 0.4,  # Lower temperature for more factual responses
-            "max_tokens": 512,
-        }
-    ).encode("utf-8")
-
     try:
-        req = urllib.request.Request(
-            OPENROUTER_URL,
-            data=payload,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}",
-                "HTTP-Referer": "https://fiscus-project.local",
-                "X-Title": "Fiscus App",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=30) as resp:  # nosec B310
-            data = json.loads(resp.read())
-
-        if "choices" in data:
-            reply = data["choices"][0]["message"]["content"]
+        logger.info(f"AI Chat Request: {message[:100]}...")
+        reply = call_ai_provider(system_prompt + "\n\nUser: " + message, max_tokens=512, temperature=0.4)
+        if reply and not str(reply).startswith("Error:"):
+            logger.info("AI Chat Response Success")
             return Response({"reply": reply})
         else:
+            logger.warning(f"AI Chat Provider failed: {reply}")
             return Response(
-                {"error": "OpenRouter response error", "details": data},
+                {"error": reply if reply else "AI тимчасово недоступний"},
                 status=status.HTTP_502_BAD_GATEWAY,
             )
-
-    except urllib.error.HTTPError as e:
-        try:
-            error_body = e.read().decode()
-            body = json.loads(error_body)
-            return Response(
-                {"error": body.get("error", {}).get("message", str(e))}, status=e.code
-            )
-        except Exception:
-            return Response({"error": f"HTTP Error {e.code}"}, status=e.code)
     except Exception as e:
+        logger.error(f"AI Chat Exception: {e}")
         return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
     View,
     Text,
+    TextInput,
     ScrollView,
     TouchableOpacity,
     StyleSheet,
@@ -11,13 +12,13 @@ import {
     Easing,
     Modal,
     ActivityIndicator,
-    TextInput,
+    Image,
 } from 'react-native';
 import * as Location from 'expo-location';
-import { LinearGradient } from 'expo-linear-gradient';
-import Icon from '../components/Icon';
+
 import { useSurvivalStore } from '../stores';
 import { useAuth } from '../context/AuthContext';
+import { useCart } from '../context/CartContext';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import ROUTES from '../constants/routes';
 
@@ -35,7 +36,7 @@ const SkeletonPulse = ({ width, height, style }) => {
     return (
         <Animated.View
             style={[
-                { width, height, borderRadius: RADIUS.sm, backgroundColor: COLORS.glass, opacity: anim },
+                { width, height, borderRadius: RADIUS.sm, backgroundColor: COLORS.border, opacity: anim },
                 style,
             ]}
         />
@@ -61,6 +62,25 @@ const SurvivalSkeleton = () => (
     </View>
 );
 
+const ProductImage = ({ uri, style }) => {
+    const [error, setError] = useState(false);
+    if (uri && !error) {
+        return (
+            <Image
+                source={{ uri }}
+                style={style}
+                resizeMode="cover"
+                onError={() => setError(true)}
+            />
+        );
+    }
+    return (
+        <View style={[style, { backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center' }]}>
+            <Text style={{ fontSize: 18 }}>🥦</Text>
+        </View>
+    );
+};
+
 /* ─── Substitution Modal ─── */
 const SubstitutionModal = ({
     visible,
@@ -80,7 +100,7 @@ const SubstitutionModal = ({
                 <View style={s.modalHeader}>
                     <Text style={s.modalTitle}>Альтернативи</Text>
                     <TouchableOpacity onPress={onClose} style={s.modalClose}>
-                        <Icon name="close" size={22} color={COLORS.textSecondary} />
+                        <Text style={{ fontSize: 20, color: COLORS.textSecondary }}>✕</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -107,7 +127,7 @@ const SubstitutionModal = ({
                                 activeOpacity={0.7}
                             >
                                 <View style={s.subIcon}>
-                                    <Icon name="swap-horizontal" size={18} color={COLORS.accent} />
+                                    <Text style={{ fontSize: 16 }}>⇄</Text>
                                 </View>
                                 <View style={{ flex: 1 }}>
                                     <Text style={s.subName}>{sub.name}</Text>
@@ -131,7 +151,7 @@ const SubstitutionModal = ({
                     </ScrollView>
                 ) : (
                     <View style={s.modalLoading}>
-                        <Icon name="search-outline" size={36} color={COLORS.textMuted} />
+                        <Text style={{ fontSize: 36 }}>🔍</Text>
                         <Text style={s.modalLoadingText}>Альтернатив не знайдено</Text>
                     </View>
                 )}
@@ -169,6 +189,7 @@ const AnimatedItem = ({ children, index, delayOffset = 0 }) => {
 /* ─── Main Screen ─── */
 export default function SurvivalScreen({ navigation }) {
     const { user } = useAuth();
+    const { addBulkItems } = useCart();
     const {
         basket, loading, fetchSurvival,
         substitutions, substituteLoading, substituteItemIndex,
@@ -240,6 +261,23 @@ export default function SurvivalScreen({ navigation }) {
         if (url) Linking.openURL(url).catch(() => {});
     };
 
+    const handleAddToCart = () => {
+        if (!basket?.items) return;
+        const cartItems = basket.items.map(i => ({
+            productId: i.product_id,
+            name: i.product_name || i.name,
+            price: parseFloat(i.price_per_unit || i.price || 0),
+            store: i.store,
+            storeId: i.store_id || i.store,
+            chain: i.chain,
+            quantity: i.quantity || 1,
+            image: i.image_url || null,
+            isPromo: i.is_promo || false,
+        }));
+        addBulkItems(cartItems);
+        navigation.navigate(ROUTES.COMPARE_CART);
+    };
+
     // Unique stores
     const mapStores = [];
     if (basket?.items) {
@@ -268,32 +306,30 @@ export default function SurvivalScreen({ navigation }) {
     }
 
     return (
-        <ScrollView 
-            style={s.container} 
-            showsVerticalScrollIndicator={Platform.OS === 'web'}
-            contentContainerStyle={{ flexGrow: 1 }}
-        >
-            <LinearGradient colors={[COLORS.accent, COLORS.accentDark, '#064e3b']} style={s.header}>
+        <View style={s.container}>
+            <ScrollView 
+                style={{ flex: 1 }}
+                showsVerticalScrollIndicator={Platform.OS === 'web'}
+                contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }}
+            >
+            <View style={s.header}>
                 <View style={s.headerTopRow}>
-                    <Icon name="shield-checkmark" size={32} color="#fff" />
+                    <Text style={s.headerEmoji}>🛡️</Text>
                     <View style={s.userStats}>
                         {user?.is_pro ? (
                             <View style={s.proBadge}>
-                                <Icon name="star" size={12} color={COLORS.accent} />
-                                <Text style={s.proText}>PRO</Text>
+                                <Text style={s.proText}>★ PRO</Text>
                             </View>
                         ) : (
                             <TouchableOpacity style={s.ticketBadge} onPress={() => navigation.navigate(ROUTES.STORE)}>
-                                <Icon name="ticket" size={16} color={COLORS.warning} />
-                                <Text style={s.ticketText}>{user?.tickets || 0}</Text>
-                                <Icon name="add-circle" size={16} color={COLORS.success} style={{marginLeft: 4}} />
+                                <Text style={s.ticketText}>🎫 {user?.tickets || 0}</Text>
                             </TouchableOpacity>
                         )}
                     </View>
                 </View>
                 <Text style={s.headerTitle}>Режим виживання</Text>
                 <Text style={s.headerSub}>AI-оптимізований кошик покупок</Text>
-            </LinearGradient>
+            </View>
 
             {/* Controls */}
             <View style={s.controls}>
@@ -301,7 +337,7 @@ export default function SurvivalScreen({ navigation }) {
                     <Text style={s.controlLabel}>Бюджет (₴)</Text>
                     <View style={s.stepper}>
                         <TouchableOpacity onPress={() => setBudget(Math.max(500, budget - 500))} style={s.stepBtn}>
-                            <Icon name="remove" size={18} color={COLORS.textSecondary} />
+                            <Text style={s.stepBtnText}>−</Text>
                         </TouchableOpacity>
                         <TextInput
                             style={s.stepInput}
@@ -313,7 +349,7 @@ export default function SurvivalScreen({ navigation }) {
                             keyboardType="numeric"
                         />
                         <TouchableOpacity onPress={() => setBudget(budget + 500)} style={s.stepBtn}>
-                            <Icon name="add" size={18} color={COLORS.textSecondary} />
+                            <Text style={s.stepBtnText}>+</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -322,7 +358,7 @@ export default function SurvivalScreen({ navigation }) {
                     <Text style={s.controlLabel}>Днів</Text>
                     <View style={s.stepper}>
                         <TouchableOpacity onPress={() => setDays(Math.max(1, days - 1))} style={s.stepBtn}>
-                            <Icon name="remove" size={18} color={COLORS.textSecondary} />
+                            <Text style={s.stepBtnText}>−</Text>
                         </TouchableOpacity>
                         <TextInput
                             style={s.stepInput}
@@ -334,7 +370,7 @@ export default function SurvivalScreen({ navigation }) {
                             keyboardType="numeric"
                         />
                         <TouchableOpacity onPress={() => setDays(days + 1)} style={s.stepBtn}>
-                            <Icon name="add" size={18} color={COLORS.textSecondary} />
+                            <Text style={s.stepBtnText}>+</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -377,10 +413,7 @@ export default function SurvivalScreen({ navigation }) {
                 onPress={() => doFetch(budget, days)}
                 activeOpacity={0.8}
             >
-                <LinearGradient colors={[COLORS.accent, COLORS.accentDark]} style={s.generateGradient}>
-                    <Icon name="sparkles" size={20} color="#fff" />
-                    <Text style={s.generateText}>Згенерувати AI кошик</Text>
-                </LinearGradient>
+                <Text style={s.generateText}>✦ Згенерувати AI кошик</Text>
             </TouchableOpacity>
 
             {/* Content */}
@@ -388,7 +421,7 @@ export default function SurvivalScreen({ navigation }) {
                 <SurvivalSkeleton />
             ) : error === 'Недостатньо тікетів' ? (
                 <View style={s.errorContainer}>
-                    <Icon name="ticket" size={64} color={COLORS.warning} />
+                    <Text style={{ fontSize: 56 }}>🎫</Text>
                     <Text style={[s.errorText, { color: COLORS.textPrimary, ...FONTS.title, marginTop: 16 }]}>Закінчилися тікети!</Text>
                     <Text style={[s.errorText, { color: COLORS.textSecondary }]}>Для генерації AI-кошика потрібен 1 тікет.</Text>
                     
@@ -402,7 +435,7 @@ export default function SurvivalScreen({ navigation }) {
                 </View>
             ) : error ? (
                 <View style={s.errorContainer}>
-                    <Icon name="alert-circle-outline" size={48} color={COLORS.error} />
+                    <Text style={{ fontSize: 40 }}>⚠️</Text>
                     <Text style={s.errorText}>{error}</Text>
                     <TouchableOpacity style={s.retryBtn} onPress={() => doFetch(budget, days)}>
                         <Text style={s.retryText}>Спробувати знову</Text>
@@ -413,7 +446,7 @@ export default function SurvivalScreen({ navigation }) {
                     {/* AI badge */}
                     {basket.ai_generated && (
                         <View style={s.aiBadge}>
-                            <Icon name="sparkles" size={14} color={COLORS.accent} />
+                            <Text style={{ fontSize: 14 }}>✦</Text>
                             <Text style={s.aiBadgeText}>Список згенеровано AI</Text>
                         </View>
                     )}
@@ -456,8 +489,8 @@ export default function SurvivalScreen({ navigation }) {
                                             openMaps(item.lat, item.lon, item.store || item.chain)
                                         }
                                     >
-                                        <View style={s.itemIcon}>
-                                            <Icon name="nutrition" size={20} color={COLORS.accent} />
+                                        <View style={s.itemIconWrap}>
+                                            <ProductImage uri={item.image_url} style={s.itemImage} />
                                         </View>
                                         <View style={{ flex: 1 }}>
                                             <Text style={s.itemName}>{item.name || item.product_name}</Text>
@@ -480,7 +513,7 @@ export default function SurvivalScreen({ navigation }) {
                                         style={s.swapBtn}
                                         onPress={() => handleSubstitute(item._originalIndex)}
                                     >
-                                        <Icon name="swap-horizontal-outline" size={16} color={COLORS.primary} />
+                                        <Text style={{ fontSize: 14, color: COLORS.primary }}>⇄</Text>
                                         <Text style={s.swapText}>Замінити</Text>
                                     </TouchableOpacity>
                                         </View>
@@ -500,9 +533,9 @@ export default function SurvivalScreen({ navigation }) {
                                     style={s.storeLink}
                                     onPress={() => openMaps(store.lat, store.lon, store.name)}
                                 >
-                                    <Icon name="navigate-outline" size={18} color={COLORS.primary} />
+                                    <Text style={{ fontSize: 16 }}>📍</Text>
                                     <Text style={s.storeLinkText}>{store.name}</Text>
-                                    <Icon name="open-outline" size={14} color={COLORS.textMuted} />
+                                    <Text style={{ fontSize: 12, color: COLORS.textMuted }}>↗</Text>
                                 </TouchableOpacity>
                             ))}
                         </View>
@@ -517,10 +550,18 @@ export default function SurvivalScreen({ navigation }) {
                             ))}
                         </View>
                     )}
+
+                    <TouchableOpacity 
+                        style={[s.generateBtn, s.generateBtnSecondary, { marginBottom: SPACING.xl }]} 
+                        onPress={handleAddToCart}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={s.generateText}>🛒 Усі товари в кошик</Text>
+                    </TouchableOpacity>
                 </>
             ) : (
                 <View style={s.emptyContainer}>
-                    <Icon name="basket-outline" size={48} color={COLORS.textMuted} />
+                    <Text style={{ fontSize: 48 }}>🛒</Text>
                     <Text style={s.emptyText}>Встановіть бюджет та кількість днів</Text>
                 </View>
             )}
@@ -534,45 +575,48 @@ export default function SurvivalScreen({ navigation }) {
                 onClose={clearSubstitutions}
                 onSelect={handleSelectSubstitution}
             />
-        </ScrollView>
+            </ScrollView>
+        </View>
     );
 }
 
 const s = StyleSheet.create({
     container: Platform.OS === 'web' ? { height: '100vh', backgroundColor: COLORS.bgPrimary, overflow: 'hidden' } : { flex: 1, backgroundColor: COLORS.bgPrimary },
-    header: { padding: SPACING.lg, alignItems: 'center' },
-    headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%' },
+    header: { padding: SPACING.lg, alignItems: 'center', backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.border },
+    headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: SPACING.sm },
+    headerEmoji: { fontSize: 30 },
     userStats: { flexDirection: 'row', alignItems: 'center' },
-    ticketBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)', paddingHorizontal: 12, paddingVertical: 6, borderRadius: RADIUS.full },
-    ticketText: { ...FONTS.bold, color: '#fff', marginLeft: 6, fontSize: 16 },
-    proBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#000', paddingHorizontal: 12, paddingVertical: 6, borderRadius: RADIUS.full, gap: 4, borderWidth: 1, borderColor: COLORS.accent },
-    proText: { ...FONTS.bold, color: COLORS.accent, fontSize: 12 },
-    headerTitle: { ...FONTS.title, color: '#fff', marginTop: SPACING.sm },
-    headerSub: { color: 'rgba(255,255,255,0.8)', fontSize: 13, marginTop: 4 },
+    ticketBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.bgSecondary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.border },
+    ticketText: { ...FONTS.bold, color: COLORS.textPrimary, fontSize: 14 },
+    proBadge: { backgroundColor: COLORS.primary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: RADIUS.full },
+    proText: { ...FONTS.bold, color: '#fff', fontSize: 12 },
+    headerTitle: { ...FONTS.title, color: COLORS.textPrimary, marginTop: SPACING.xs },
+    headerSub: { color: COLORS.textSecondary, fontSize: 13, marginTop: 4 },
     controls: { flexDirection: 'row', paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg, gap: SPACING.md },
-    controlGroup: { flex: 1, backgroundColor: COLORS.bgCard, padding: SPACING.md, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.glassBorder },
+    controlGroup: { flex: 1, backgroundColor: COLORS.white, padding: SPACING.md, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.border },
     controlLabel: { ...FONTS.caption, marginBottom: 8 },
     
     chainSelector: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.md },
     chainChips: { flexDirection: 'row', gap: SPACING.sm },
-    chainChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: RADIUS.full, backgroundColor: COLORS.bgCard, borderWidth: 1, borderColor: COLORS.glassBorder },
+    chainChip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: RADIUS.full, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border },
     chainChipActive: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
     chainChipText: { ...FONTS.medium, color: COLORS.textSecondary },
     chainChipTextActive: { color: '#fff', fontWeight: 'bold' },
 
     stepper: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.bgInput, borderRadius: RADIUS.md },
-    stepBtn: { padding: 8, backgroundColor: COLORS.bgInput, borderRadius: RADIUS.sm },
+    stepBtn: { padding: 8, backgroundColor: COLORS.bgSecondary, borderRadius: RADIUS.sm, borderWidth: 1, borderColor: COLORS.border, minWidth: 34, alignItems: 'center' },
+    stepBtnText: { fontSize: 18, color: COLORS.primary, fontWeight: '700', lineHeight: 22 },
     stepValue: { ...FONTS.bold, fontSize: 18, minWidth: 40, textAlign: 'center' },
     stepInput: { ...FONTS.bold, fontSize: 18, minWidth: 50, textAlign: 'center', color: COLORS.textPrimary, padding: 0, height: 36 },
 
-    generateBtn: { marginHorizontal: SPACING.lg, marginTop: SPACING.md, borderRadius: RADIUS.full, overflow: 'hidden' },
-    generateGradient: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, paddingVertical: SPACING.md },
+    generateBtn: { marginHorizontal: SPACING.lg, marginTop: SPACING.md, borderRadius: RADIUS.full, backgroundColor: COLORS.primary, paddingVertical: SPACING.md, alignItems: 'center', justifyContent: 'center' },
+    generateBtnSecondary: { backgroundColor: COLORS.surface },
     generateText: { ...FONTS.bold, color: '#fff', fontSize: 16 },
 
     aiBadge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: SPACING.md, paddingVertical: 6 },
     aiBadgeText: { ...FONTS.caption, color: COLORS.accent, fontSize: 12 },
 
-    aiLoadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, marginBottom: SPACING.md, paddingVertical: SPACING.md, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.borderLight },
+    aiLoadingBox: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, marginBottom: SPACING.md, paddingVertical: SPACING.md, backgroundColor: COLORS.white, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border },
     aiLoadingText: { ...FONTS.medium, color: COLORS.accent, fontSize: 14 },
 
     receiptCard: { 
@@ -599,25 +643,26 @@ const s = StyleSheet.create({
     categoryTitle: { ...FONTS.bold, fontSize: 15, color: COLORS.textSecondary },
     categoryLine: { flex: 1, height: 1, backgroundColor: COLORS.borderLight, marginLeft: SPACING.sm },
 
-    itemCard: { backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.borderLight, overflow: 'hidden' },
+    itemCard: { backgroundColor: COLORS.white, borderRadius: RADIUS.md, marginBottom: SPACING.sm, borderWidth: 1, borderColor: COLORS.border, overflow: 'hidden' },
     itemMain: { flexDirection: 'row', alignItems: 'center', padding: SPACING.md },
-    itemIcon: { width: 36, height: 36, borderRadius: RADIUS.sm, backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center', marginRight: SPACING.md },
+    itemIconWrap: { width: 44, height: 44, borderRadius: RADIUS.sm, backgroundColor: COLORS.surface, overflow: 'hidden', marginRight: SPACING.md },
+    itemImage: { width: '100%', height: '100%' },
     itemName: { ...FONTS.medium, fontSize: 14 },
     itemChain: { ...FONTS.caption, marginTop: 2 },
     itemReason: { ...FONTS.caption, color: COLORS.accent, marginTop: 3, fontSize: 11 },
     itemPrice: { ...FONTS.price, fontSize: 14 },
     itemQty: { ...FONTS.caption, fontSize: 11 },
 
-    swapBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, borderTopWidth: 1, borderTopColor: COLORS.borderLight, backgroundColor: COLORS.surface },
+    swapBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: 8, borderTopWidth: 1, borderTopColor: COLORS.border, backgroundColor: COLORS.bgSecondary },
     swapText: { ...FONTS.caption, color: COLORS.primary, fontWeight: '600', fontSize: 12 },
 
-    tipsSection: { marginHorizontal: SPACING.lg, marginTop: SPACING.md, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.borderLight },
+    tipsSection: { marginHorizontal: SPACING.lg, marginTop: SPACING.md, backgroundColor: COLORS.white, borderRadius: RADIUS.md, padding: SPACING.md, borderWidth: 1, borderColor: COLORS.border },
     tipsTitle: { ...FONTS.bold, marginBottom: 8 },
     tipText: { ...FONTS.regular, color: COLORS.textSecondary, marginBottom: 4, lineHeight: 20 },
 
     storesSection: { marginHorizontal: SPACING.lg, marginTop: SPACING.md },
     storesSectionTitle: { ...FONTS.bold, marginBottom: SPACING.sm },
-    storeLink: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: SPACING.md, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.primaryLight + '30', marginBottom: SPACING.xs },
+    storeLink: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: SPACING.md, backgroundColor: COLORS.white, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.xs },
     storeLinkText: { ...FONTS.medium, color: COLORS.primary, flex: 1 },
 
     errorContainer: { alignItems: 'center', padding: SPACING.xxl },
@@ -630,19 +675,19 @@ const s = StyleSheet.create({
 
     /* Modal */
     modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
-    modalContent: { backgroundColor: COLORS.bgPrimary, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, padding: SPACING.lg, maxHeight: '70%' },
+    modalContent: { backgroundColor: COLORS.white, borderTopLeftRadius: RADIUS.xl, borderTopRightRadius: RADIUS.xl, padding: SPACING.lg, maxHeight: '70%' },
     modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: SPACING.md },
     modalTitle: { ...FONTS.title, fontSize: 20 },
     modalClose: { padding: 4 },
-    modalOriginal: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: SPACING.md, backgroundColor: COLORS.surface, borderRadius: RADIUS.md, marginBottom: SPACING.md },
+    modalOriginal: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: SPACING.md, backgroundColor: COLORS.bgSecondary, borderRadius: RADIUS.md, marginBottom: SPACING.md },
     modalOriginalLabel: { ...FONTS.caption },
     modalOriginalName: { ...FONTS.medium, flex: 1 },
     modalOriginalPrice: { ...FONTS.price, fontSize: 14 },
     modalLoading: { alignItems: 'center', padding: SPACING.xxl, gap: SPACING.md },
     modalLoadingText: { ...FONTS.caption, color: COLORS.textMuted, fontSize: 13 },
 
-    subCard: { flexDirection: 'row', alignItems: 'center', padding: SPACING.md, backgroundColor: COLORS.bgCard, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.borderLight, marginBottom: SPACING.sm },
-    subIcon: { width: 32, height: 32, borderRadius: RADIUS.sm, backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center', marginRight: SPACING.md },
+    subCard: { flexDirection: 'row', alignItems: 'center', padding: SPACING.md, backgroundColor: COLORS.white, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.sm },
+    subIcon: { width: 32, height: 32, borderRadius: RADIUS.sm, backgroundColor: COLORS.bgSecondary, justifyContent: 'center', alignItems: 'center', marginRight: SPACING.md },
     subName: { ...FONTS.medium, fontSize: 14 },
     subChain: { ...FONTS.caption, marginTop: 2 },
     subReason: { ...FONTS.caption, color: COLORS.accent, marginTop: 3, fontSize: 11 },

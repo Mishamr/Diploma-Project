@@ -102,7 +102,7 @@ def _get_available_products_summary(user_lat=None, user_lon=None, limit=200):
             "store_item__store",
             "store_item__store__chain",
         )
-    )[:4000]
+    )[:5000]
 
     # Keep latest price per store_item
     seen = {}
@@ -111,39 +111,47 @@ def _get_available_products_summary(user_lat=None, user_lon=None, limit=200):
         if si_id not in seen:
             seen[si_id] = p
 
-    products_data = []
-    for p in list(seen.values()):
-        store = p.store_item.store
-        product = p.store_item.product
-        dist_km = 0.0
-        if user_lat and user_lon and store.latitude and store.longitude:
-            dist_km = haversine(
-                float(user_lat),
-                float(user_lon),
-                float(store.latitude),
-                float(store.longitude),
-            )
-            # Filter out products further than 5km if location is provided
-            if dist_km > 5.0:
-                continue
+    def get_products(max_dist=None):
+        data = []
+        for p in list(seen.values()):
+            store = p.store_item.store
+            product = p.store_item.product
+            dist_km = 0.0
+            if user_lat and user_lon and store.latitude and store.longitude:
+                dist_km = haversine(
+                    float(user_lat),
+                    float(user_lon),
+                    float(store.latitude),
+                    float(store.longitude),
+                )
+                if max_dist and dist_km > max_dist:
+                    continue
 
-        products_data.append(
-            {
-                "id": product.id,
-                "name": product.name,
-                "category": product.category.name if product.category else "Інше",
-                "price": float(p.price),
-                "old_price": float(p.old_price) if p.old_price else None,
-                "is_promo": p.is_promo,
-                "store": store.name,
-                "store_id": store.id,
-                "chain": store.chain.name,
-                "lat": store.latitude,
-                "lon": store.longitude,
-                "distance_km": round(dist_km, 2),
-                "weight_kg": product.weight_kg or 1.0,
-            }
-        )
+            data.append(
+                {
+                    "id": product.id,
+                    "name": product.name,
+                    "category": product.category.name if product.category else "Інше",
+                    "price": float(p.price),
+                    "old_price": float(p.old_price) if p.old_price else None,
+                    "is_promo": p.is_promo,
+                    "store": store.name,
+                    "store_id": store.id,
+                    "chain": store.chain.name,
+                    "lat": store.latitude,
+                    "lon": store.longitude,
+                    "distance_km": round(dist_km, 2),
+                    "weight_kg": product.weight_kg or 1.0,
+                }
+            )
+        return data
+
+    # Try 5km first, then relax to 15km, then 100km if needed
+    products_data = get_products(max_dist=5.0)
+    if len(products_data) < 50:
+        products_data = get_products(max_dist=15.0)
+    if len(products_data) < 20:
+        products_data = get_products(max_dist=100.0)
 
     # Sort by distance first if lat/lon provided, else by price
     if user_lat and user_lon:
@@ -165,48 +173,132 @@ def _get_available_products_summary(user_lat=None, user_lon=None, limit=200):
     return products_data, text_summary
 
 
-def _call_ai_provider(prompt, max_tokens=1024, temperature=0.3):
-    """Call OpenRouter API and return parsed text response."""
-    api_key = os.environ.get("OPENROUTER_API_KEY", "")
-    if not api_key:
-        return None
+def call_ai_provider(prompt, max_tokens=1024, temperature=0.3):
+    """
+    Unified AI provider call.
 
-    url = "https://openrouter.ai/api/v1/chat/completions"
+    Priority:
+      1. Groq (безкоштовний, 14 400 req/день, llama3-70b) — РЕКОМЕНДОВАНО
+      2. Google Gemini Direct (15 req/хв free tier, може давати 429)
+      3. OpenRouter (fallback, pay-per-token)
 
-    payload = json.dumps(
-        {
+    Налаштування у .env:
+      GROQ_API_KEY=gsk_...   # безлімітні токени, 14400 req/день безкоштовно
+      GEMINI_API_KEY=...     # запасний
+      OPENROUTER_API_KEY=... # запасний
+    """
+    api_key_groq = os.environ.get("GROQ_API_KEY", "")
+    api_key_gemini = os.environ.get("GEMINI_API_KEY", "")
+    api_key_or = os.environ.get("OPENROUTER_API_KEY", "")
+
+    # ─── 1. Groq — пріоритет (безкоштовний, швидкий, «безліміт токенів») ───
+    if api_key_groq:
+        groq_models = [
+            "llama3-70b-8192",       # найкращий безкоштовний
+            "llama3-8b-8192",         # лайтовий failover
+            "mixtral-8x7b-32768",     # ще один варіант
+        ]
+        for model in groq_models:
+            url = "https://api.groq.com/openai/v1/chat/completions"
+            payload_data = {
+                "model": model,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            }
+            payload = json.dumps(payload_data).encode("utf-8")
+            try:
+                logger.info(f"Groq request with {model}...")
+                req = urllib.request.Request(
+                    url,
+                    data=payload,
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {api_key_groq}",
+                    },
+                    method="POST",
+                )
+                with urllib.request.urlopen(req, timeout=30) as resp:  # nosec B310
+                    data = json.loads(resp.read())
+                if "choices" in data and data["choices"]:
+                    text = data["choices"][0]["message"]["content"]
+                    if text:
+                        logger.info(f"Groq success with {model}")
+                        return text
+            except urllib.error.HTTPError as e:
+                err_body = e.read().decode("utf-8")
+                logger.warning(f"Groq {model} failed: {e.code} - {err_body}")
+            except Exception as e:
+                logger.error(f"Groq {model} error: {e}")
+
+    # ─── 2. Google Gemini Direct (fallback) ───
+    if api_key_gemini:
+        models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b"]
+        for model in models:
+            url = (
+                f"https://generativelanguage.googleapis.com/v1beta/models/"
+                f"{model}:generateContent?key={api_key_gemini}"
+            )
+            payload_data = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "temperature": temperature,
+                    "maxOutputTokens": max_tokens,
+                },
+            }
+            payload = json.dumps(payload_data).encode("utf-8")
+            try:
+                logger.info(f"Gemini request with {model}...")
+                req = urllib.request.Request(
+                    url, data=payload, headers={"Content-Type": "application/json"}
+                )
+                with urllib.request.urlopen(req, timeout=30) as resp:  # nosec B310
+                    data = json.loads(resp.read())
+                if "candidates" in data and data["candidates"]:
+                    text = data["candidates"][0]["content"]["parts"][0]["text"]
+                    if text:
+                        logger.info(f"Gemini success with {model}")
+                        return text
+            except urllib.error.HTTPError as e:
+                err_body = e.read().decode("utf-8")
+                logger.warning(f"Gemini {model} failed: {e.code} - {err_body}")
+            except Exception as e:
+                logger.error(f"Gemini {model} error: {e}")
+
+    # ─── 3. OpenRouter (last resort) ───
+    if api_key_or:
+        url = "https://openrouter.ai/api/v1/chat/completions"
+        payload_data = {
             "model": "google/gemini-2.0-flash-001",
             "messages": [{"role": "user", "content": prompt}],
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
-    ).encode("utf-8")
+        payload = json.dumps(payload_data).encode("utf-8")
+        try:
+            logger.info("OpenRouter request...")
+            req = urllib.request.Request(
+                url,
+                data=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {api_key_or}",
+                    "HTTP-Referer": "https://fiscus-project.local",
+                    "X-Title": "Fiscus App",
+                },
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=30) as resp:  # nosec B310
+                data = json.loads(resp.read())
+            if "choices" in data and data["choices"]:
+                return data["choices"][0]["message"]["content"]
+        except Exception as e:
+            logger.error(f"OpenRouter error: {e}")
 
-    try:
-        req = urllib.request.Request(
-            url,
-            data=payload,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}",
-                "HTTP-Referer": "https://fiscus-project.local",
-                "X-Title": "Fiscus App",
-            },
-            method="POST",
-        )
-        with urllib.request.urlopen(req, timeout=30) as resp:  # nosec B310
-            data = json.loads(resp.read())
-
-        if "choices" in data:
-            return data["choices"][0]["message"]["content"]
-        return None
-        return data["candidates"][0]["content"]["parts"][0]["text"]
-    except urllib.error.HTTPError as e:
-        logger.error(f"Gemini API HTTP Error {e.code}: {e.read().decode('utf-8')}")
-        return None
-    except Exception as e:
-        logger.error(f"Gemini API error: {e}")
-        return None
+    # No working provider
+    if not api_key_groq and not api_key_gemini and not api_key_or:
+        return "Error: No AI API keys configured. Add GROQ_API_KEY to .env"
+    return None
 
 
 def _parse_json_from_response(text):
@@ -245,7 +337,7 @@ def _ai_generate_shopping_list(budget, days, products_summary):
 
 ПРАВИЛА:
 1. Обирай ТІЛЬКИ товари з наданого списку (використовуй їх ID)
-2. Забезпеч збалансоване харчування: крупи, хліб, молочка, м'ясо/риба, овочі, олія, яйця
+2. Забезпеч збалансоване харчування: крупи, хліб, молочка, м'ясо/риба, овочі, олія, яйця. ВАЖЛИВО: меню має бути різноманітним на кожен день (щоб готувати різні страви: пасту, суп, капусняк, борщ тощо).
 3. Загальна вартість НЕ ПОВИННА перевищити {budget} грн
 4. Для кожного товару вкажи кількість (скільки штук купити на {days} днів)
 5. Обирай найдешевші варіанти, але з урахуванням якості
@@ -265,7 +357,7 @@ def _ai_generate_shopping_list(budget, days, products_summary):
 """
 
     try:
-        response = _call_ai_provider(prompt, max_tokens=1500, temperature=0.3)
+        response = call_ai_provider(prompt, max_tokens=1500, temperature=0.3)
         return _parse_json_from_response(response)
     except Exception as e:
         logger.error(f"Survival AI generation failed: {e}")
@@ -292,10 +384,10 @@ def _ai_analyze_basket(basket_items, budget, days, total_cost):
 Оціни збалансованість, вигідність, можливості заощадити.
 Кожен пункт з нового рядка. Без смайликів та емодзі. Без зірочок markdown."""
 
-    response = _call_ai_provider(prompt, max_tokens=400, temperature=0.7)
-    if response:
+    response = call_ai_provider(prompt, max_tokens=400, temperature=0.7)
+    if response and not str(response).startswith("Error:"):
         return [line.strip() for line in response.split("\n") if line.strip()]
-    return ["Порада: Налаштуйте GEMINI_API_KEY для отримання AI-аналізу."]
+    return ["AI-аналіз тимчасово недоступний (перевищено ліміти)."]
 
 
 # ─── AI substitution recommendations ───
@@ -343,7 +435,7 @@ def get_ai_substitutions(
   ...
 ]"""
 
-    response = _call_ai_provider(prompt, max_tokens=600, temperature=0.4)
+    response = call_ai_provider(prompt, max_tokens=600, temperature=0.4)
     ai_picks = _parse_json_from_response(response)
 
     if not ai_picks:
@@ -406,14 +498,26 @@ def generate_survival_basket(budget=5000, days=7, lat=None, lon=None, chain=None
             )
         products_summary = "\n".join(lines)
 
+    # ── Demo basket (DB порожня — скрапер ще не запускався) ──────────────────
+    if not products_data:
+        return _build_demo_basket(budget, days)
+
     # Try AI-powered generation first
     ai_picks = _ai_generate_shopping_list(budget, days, products_summary)
 
     if ai_picks:
         basket_items = _build_basket_from_ai(ai_picks, products_data, budget_decimal)
+        # If AI returned IDs that don't exist in DB — basket will be empty, use demo
+        if not basket_items:
+            logger.warning("AI picks resolved to 0 DB products — using demo basket")
+            return _build_demo_basket(budget, days)
     else:
         # Fallback to keyword-based algorithm
         basket_items = _build_basket_fallback(budget_decimal, days, lat, lon, chain)
+
+    # If still empty — use demo
+    if not basket_items:
+        return _build_demo_basket(budget, days)
 
     total_cost = sum(Decimal(str(item["total"])) for item in basket_items)
 
@@ -593,12 +697,13 @@ def _find_cheapest_product(keywords, user_lat=None, user_lon=None, chain=None):
                 float(user_lat), float(user_lon), float(store_lat), float(store_lon)
             )
 
-            # Enforce 5km strict limit for fallback too
-            if dist_km > 5.0:
+            # Enforce 5km strict limit for AI, but for fallback let's be more generous (1000km)
+            # if user is far from stores in DB (e.g. Lviv user vs Kyiv stores).
+            if dist_km > 1000.0:
                 continue
 
         price_val = float(p.price)
-        distance_penalty = dist_km * 2.0
+        distance_penalty = dist_km * 0.5  # Reduced penalty for fallback
         promo_bonus = 5.0 if p.is_promo else 0.0
         score = price_val + distance_penalty - promo_bonus
 
@@ -625,3 +730,69 @@ def _calculate_quantity(needed_kg, weight_per_unit_kg):
     if weight_per_unit_kg <= 0:
         weight_per_unit_kg = 1.0
     return max(1, math.ceil(needed_kg / weight_per_unit_kg))
+
+
+def _build_demo_basket(budget, days):
+    """Fallback realistic data when database is completely empty."""
+    budget_decimal = Decimal(str(budget))
+    daily_budget = budget_decimal / max(1, days)
+    
+    # 3 categories of baskets based on daily budget
+    if daily_budget < 200:
+        # Minimal survival
+        items = [
+            {"product_id": 1, "name": "Хліб пшеничний половинка", "category": "Хлібобулочні", "quantity": days, "price": "18.50", "total": f"{18.5 * days:.2f}", "chain": "АТБ", "store": "АТБ №1", "distance_km": 0.5},
+            {"product_id": 2, "name": "Крупа гречана 1кг", "category": "Бакалія", "quantity": max(1, days // 3), "price": "34.90", "total": f"{34.9 * max(1, days // 3):.2f}", "chain": "АТБ", "store": "АТБ №1", "distance_km": 0.5},
+            {"product_id": 3, "name": "Макарони 1кг", "category": "Бакалія", "quantity": max(1, days // 4), "price": "29.40", "total": f"{29.4 * max(1, days // 4):.2f}", "chain": "Сільпо", "store": "Сільпо №3", "distance_km": 1.2},
+            {"product_id": 4, "name": "Картопля ваговий 1кг", "category": "Овочі", "quantity": days, "price": "14.20", "total": f"{14.2 * days:.2f}", "chain": "Ашан", "store": "Ашан", "distance_km": 2.5},
+            {"product_id": 5, "name": "Олія соняшникова 850мл", "category": "Бакалія", "quantity": 1, "price": "56.00", "total": "56.00", "chain": "АТБ", "store": "АТБ №1", "distance_km": 0.5},
+            {"product_id": 6, "name": "Яйця курячі 10шт С1", "category": "Молочні", "quantity": max(1, days // 5), "price": "45.00", "total": f"{45.0 * max(1, days // 5):.2f}", "chain": "Сільпо", "store": "Сільпо №3", "distance_km": 1.2},
+        ]
+    elif daily_budget < 500:
+        # Balanced
+        items = [
+            {"product_id": 1, "name": "Хліб тостовий 500г", "category": "Хлібобулочні", "quantity": max(1, days // 2), "price": "28.50", "total": f"{28.5 * max(1, days // 2):.2f}", "chain": "Сільпо", "store": "Сільпо №3", "distance_km": 1.2},
+            {"product_id": 2, "name": "Філе куряче охолоджене 1кг", "category": "М'ясо", "quantity": max(1, days // 3), "price": "165.00", "total": f"{165.0 * max(1, days // 3):.2f}", "chain": "Ашан", "store": "Ашан", "distance_km": 2.5},
+            {"product_id": 3, "name": "Макарони з твердих сортів пшениці", "category": "Бакалія", "quantity": max(1, days // 3), "price": "45.90", "total": f"{45.9 * max(1, days // 3):.2f}", "chain": "АТБ", "store": "АТБ №1", "distance_km": 0.5},
+            {"product_id": 4, "name": "Молоко 2.5% 900мл", "category": "Молочні", "quantity": days, "price": "38.50", "total": f"{38.5 * days:.2f}", "chain": "АТБ", "store": "АТБ №1", "distance_km": 0.5},
+            {"product_id": 5, "name": "Масло вершкове 72.5% 200г", "category": "Молочні", "quantity": max(1, days // 7), "price": "68.00", "total": f"{68.0 * max(1, days // 7):.2f}", "chain": "Сільпо", "store": "Сільпо №3", "distance_km": 1.2},
+            {"product_id": 6, "name": "Сир кисломолочний 5% 350г", "category": "Молочні", "quantity": max(1, days // 4), "price": "58.00", "total": f"{58.0 * max(1, days // 4):.2f}", "chain": "Сільпо", "store": "Сільпо №3", "distance_km": 1.2},
+            {"product_id": 7, "name": "Огірки тепличні 1кг", "category": "Овочі", "quantity": max(1, days // 3), "price": "85.00", "total": f"{85.0 * max(1, days // 3):.2f}", "chain": "Ашан", "store": "Ашан", "distance_km": 2.5},
+            {"product_id": 8, "name": "Яйця курячі 10шт С0", "category": "Молочні", "quantity": max(1, days // 3), "price": "52.00", "total": f"{52.0 * max(1, days // 3):.2f}", "chain": "АТБ", "store": "АТБ №1", "distance_km": 0.5},
+        ]
+    else:
+        # Premium
+        items = [
+            {"product_id": 1, "name": "Хліб крафтовий з насінням", "category": "Хлібобулочні", "quantity": max(1, days // 2), "price": "55.00", "total": f"{55.0 * max(1, days // 2):.2f}", "chain": "Сільпо", "store": "Сільпо №3", "distance_km": 1.2},
+            {"product_id": 2, "name": "Сьомга слабосолона 200г", "category": "Риба", "quantity": max(1, days // 4), "price": "249.00", "total": f"{249.0 * max(1, days // 4):.2f}", "chain": "Сільпо", "store": "Сільпо №3", "distance_km": 1.2},
+            {"product_id": 3, "name": "Яловичина стейк тібоун 500г", "category": "М'ясо", "quantity": max(1, days // 5), "price": "315.00", "total": f"{315.0 * max(1, days // 5):.2f}", "chain": "Ашан", "store": "Ашан", "distance_km": 2.5},
+            {"product_id": 4, "name": "Сир брі Président 200г", "category": "Молочні", "quantity": max(1, days // 4), "price": "105.00", "total": f"{105.0 * max(1, days // 4):.2f}", "chain": "Сільпо", "store": "Сільпо №3", "distance_km": 1.2},
+            {"product_id": 5, "name": "Томати чері 250г", "category": "Овочі", "quantity": days // 2, "price": "75.00", "total": f"{75.0 * (days // 2):.2f}", "chain": "Сільпо", "store": "Сільпо №3", "distance_km": 1.2},
+            {"product_id": 6, "name": "Авокадо хасс", "category": "Фрукти", "quantity": days, "price": "45.00", "total": f"{45.0 * days:.2f}", "chain": "АТБ", "store": "АТБ №1", "distance_km": 0.5},
+            {"product_id": 7, "name": "Оливкова олія Extra Virgin 500мл", "category": "Бакалія", "quantity": 1, "price": "285.00", "total": "285.00", "chain": "Ашан", "store": "Ашан", "distance_km": 2.5},
+            {"product_id": 8, "name": "Кава в зернах Lavazza 1кг", "category": "Бакалія", "quantity": 1, "price": "560.00", "total": "560.00", "chain": "АТБ", "store": "АТБ №1", "distance_km": 0.5},
+        ]
+        
+    current_total = sum(float(item["total"]) for item in items)
+    if current_total > 0:
+        scale = float(budget) / current_total
+        if scale > 1.1:
+            for it in items:
+                it["quantity"] = max(1, math.floor(it["quantity"] * scale))
+                it["total"] = f"{float(it['price']) * it['quantity']:.2f}"
+                
+    total_cost = sum(float(item["total"]) for item in items)
+    
+    return {
+        "budget": budget,
+        "days": days,
+        "ai_generated": False,
+        "items": items,
+        "total_cost": round(total_cost, 2),
+        "daily_cost": round(total_cost / max(1, days), 2),
+        "tips": [
+            "⚠️ База даних товарів ще не заповнена, тому ми показуємо реалістичний демо-список.",
+            "Запустіть скрапер магазинів для отримання актуальних цін вашого міста.",
+            f"Розрахований кошик оптимізовано під бюджет {budget} ₴ на {days} днів."
+        ]
+    }

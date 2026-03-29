@@ -1,5 +1,5 @@
 /**
- * Shopping List / Calculator screen — online store-style cart with totals.
+ * Shopping List / Calculator screen — minimalist light-purple theme.
  */
 
 import React from 'react';
@@ -12,46 +12,32 @@ import {
     Alert,
     Image,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Icon from '../components/Icon';
 import { useCart } from '../context/CartContext';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import GlassCard from '../components/GlassCard';
 import ROUTES from '../constants/routes';
 
 export default function ShoppingListScreen({ navigation }) {
-    const {
-        items,
-        totalItems,
-        totalPrice,
-        removeItem,
-        updateQuantity,
-        clearCart,
-    } = useCart();
+    const { items, totalItems, totalPrice, removeItem, updateQuantity, clearCart } = useCart();
 
-    // Mock original prices for savings display
     const originalTotal = items.reduce((sum, i) => sum + (i.price || 0) * 1.15 * i.quantity, 0);
     const savings = originalTotal - totalPrice;
 
     const handleClear = () => {
-        Alert.alert(
-            'Очистити кошик?',
-            'Всі товари будуть видалені.',
-            [
-                { text: 'Скасувати', style: 'cancel' },
-                { text: 'Очистити', style: 'destructive', onPress: clearCart },
-            ]
-        );
+        Alert.alert('Очистити кошик?', 'Всі товари будуть видалені.', [
+            { text: 'Скасувати', style: 'cancel' },
+            { text: 'Очистити', style: 'destructive', onPress: clearCart },
+        ]);
     };
 
     const renderItem = ({ item }) => (
         <GlassCard style={styles.itemCard}>
-            {/* Product image placeholder */}
+            {/* Thumbnail */}
             <View style={styles.itemThumb}>
                 {item.image_url ? (
                     <Image source={{ uri: item.image_url }} style={styles.thumbImg} />
                 ) : (
-                    <Icon name="cube-outline" size={24} color={COLORS.textMuted} />
+                    <Text style={styles.thumbEmoji}>📦</Text>
                 )}
             </View>
 
@@ -68,14 +54,14 @@ export default function ShoppingListScreen({ navigation }) {
                         onPress={() => updateQuantity(item.productId, item.quantity - 1)}
                         style={styles.qtyBtn}
                     >
-                        <Icon name="remove" size={16} color={COLORS.textSecondary} />
+                        <Text style={styles.qtyBtnText}>−</Text>
                     </TouchableOpacity>
                     <Text style={styles.qtyText}>{item.quantity}</Text>
                     <TouchableOpacity
                         onPress={() => updateQuantity(item.productId, item.quantity + 1)}
                         style={styles.qtyBtn}
                     >
-                        <Icon name="add" size={16} color={COLORS.textSecondary} />
+                        <Text style={styles.qtyBtnText}>+</Text>
                     </TouchableOpacity>
                 </View>
                 <Text style={styles.itemTotal}>
@@ -84,11 +70,8 @@ export default function ShoppingListScreen({ navigation }) {
             </View>
 
             {/* Delete */}
-            <TouchableOpacity
-                style={styles.deleteBtn}
-                onPress={() => removeItem(item.productId)}
-            >
-                <Icon name="trash-outline" size={16} color={COLORS.error} />
+            <TouchableOpacity style={styles.deleteBtn} onPress={() => removeItem(item.productId)}>
+                <Text style={styles.deleteBtnText}>✕</Text>
             </TouchableOpacity>
         </GlassCard>
     );
@@ -98,18 +81,17 @@ export default function ShoppingListScreen({ navigation }) {
             {/* Summary header */}
             <View style={styles.summaryBar}>
                 <View>
-                    <Text style={styles.summaryLabel}>🛒 Калькулятор кошика</Text>
+                    <Text style={styles.summaryLabel}>Калькулятор кошика</Text>
                     <Text style={styles.summaryCount}>{totalItems} товарів</Text>
                 </View>
                 {totalItems > 0 && (
                     <TouchableOpacity onPress={handleClear} style={styles.clearBtn}>
-                        <Icon name="trash-outline" size={18} color={COLORS.error} />
                         <Text style={styles.clearText}>Очистити</Text>
                     </TouchableOpacity>
                 )}
             </View>
 
-            {/* Items list */}
+            {/* Items */}
             <FlatList
                 data={items}
                 renderItem={renderItem}
@@ -118,28 +100,21 @@ export default function ShoppingListScreen({ navigation }) {
                 showsVerticalScrollIndicator={false}
                 ListEmptyComponent={
                     <View style={styles.emptyState}>
-                        <Icon name="calculator-outline" size={64} color={COLORS.textMuted} />
+                        <View style={styles.emptyBar} />
                         <Text style={styles.emptyTitle}>Кошик порожній</Text>
-                        <Text style={styles.emptySubtitle}>
-                            Додайте товари з каталогу або акцій
-                        </Text>
+                        <Text style={styles.emptySubtitle}>Додайте товари з каталогу або акцій</Text>
                     </View>
                 }
             />
 
-            {/* Bottom totals bar — like online stores */}
+            {/* Bottom totals bar */}
             {totalItems > 0 && (
                 <View style={styles.bottomBar}>
-                    {/* Savings row */}
                     {savings > 0 && (
                         <View style={styles.savingsRow}>
-                            <Icon name="trending-down" size={16} color={COLORS.accent} />
-                            <Text style={styles.savingsText}>
-                                Економія: {savings.toFixed(2)} ₴
-                            </Text>
+                            <Text style={styles.savingsText}>↓ Економія: {savings.toFixed(2)} ₴</Text>
                         </View>
                     )}
-
                     <View style={styles.totalRow}>
                         <View>
                             <Text style={styles.totalLabel}>До сплати:</Text>
@@ -149,15 +124,7 @@ export default function ShoppingListScreen({ navigation }) {
                             style={styles.compareBtn}
                             onPress={() => navigation?.navigate(ROUTES.COMPARE_CART)}
                         >
-                            <LinearGradient
-                                colors={COLORS.gradientAI}
-                                style={styles.compareBtnInner}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 0 }}
-                            >
-                                <Icon name="sparkles" size={18} color="#fff" />
-                                <Text style={styles.compareBtnText}>Порівняти</Text>
-                            </LinearGradient>
+                            <Text style={styles.compareBtnText}>✦ Порівняти</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -167,42 +134,30 @@ export default function ShoppingListScreen({ navigation }) {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: COLORS.bgPrimary,
-    },
+    container: { flex: 1, backgroundColor: COLORS.bgPrimary },
+
     summaryBar: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        backgroundColor: COLORS.bgSecondary,
+        backgroundColor: COLORS.white,
         paddingHorizontal: SPACING.lg,
         paddingVertical: SPACING.md,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.glassBorder,
+        borderBottomColor: COLORS.border,
     },
-    summaryLabel: {
-        ...FONTS.bold,
-        fontSize: 17,
-    },
-    summaryCount: {
-        ...FONTS.caption,
-        marginTop: 2,
-    },
+    summaryLabel: { ...FONTS.bold, fontSize: 17 },
+    summaryCount: { ...FONTS.caption, marginTop: 2 },
     clearBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        backgroundColor: 'rgba(244, 63, 94, 0.1)',
+        backgroundColor: 'rgba(220,38,38,0.08)',
+        borderWidth: 1,
+        borderColor: 'rgba(220,38,38,0.15)',
         paddingHorizontal: SPACING.md,
         paddingVertical: SPACING.xs,
         borderRadius: RADIUS.full,
     },
-    clearText: {
-        color: COLORS.error,
-        fontSize: 12,
-        fontWeight: '600',
-    },
+    clearText: { color: COLORS.error, fontSize: 12, fontWeight: '600' },
+
     listContent: {
         paddingHorizontal: SPACING.lg,
         paddingTop: SPACING.sm,
@@ -218,124 +173,69 @@ const styles = StyleSheet.create({
         width: 48,
         height: 48,
         borderRadius: RADIUS.sm,
-        backgroundColor: COLORS.glassLight,
+        backgroundColor: COLORS.bgSecondary,
         justifyContent: 'center',
         alignItems: 'center',
         overflow: 'hidden',
     },
-    thumbImg: {
-        width: 48,
-        height: 48,
-    },
-    itemInfo: {
-        flex: 1,
-        marginLeft: SPACING.md,
-    },
-    itemName: {
-        ...FONTS.medium,
-        fontSize: 13,
-    },
-    itemPriceUnit: {
-        ...FONTS.caption,
-        marginTop: 2,
-        fontSize: 11,
-    },
-    quantitySection: {
-        alignItems: 'center',
-        marginLeft: SPACING.sm,
-    },
+    thumbImg: { width: 48, height: 48 },
+    thumbEmoji: { fontSize: 22 },
+    itemInfo: { flex: 1, marginLeft: SPACING.md },
+    itemName: { ...FONTS.medium, fontSize: 13 },
+    itemPriceUnit: { ...FONTS.caption, marginTop: 2, fontSize: 11 },
+
+    quantitySection: { alignItems: 'center', marginLeft: SPACING.sm },
     quantityControls: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.bgInput,
+        backgroundColor: COLORS.bgSecondary,
         borderRadius: RADIUS.sm,
-        paddingHorizontal: 2,
+        borderWidth: 1,
+        borderColor: COLORS.border,
     },
-    qtyBtn: {
-        padding: 6,
-    },
-    qtyText: {
-        ...FONTS.bold,
-        fontSize: 14,
-        minWidth: 22,
-        textAlign: 'center',
-    },
-    itemTotal: {
-        ...FONTS.price,
-        fontSize: 13,
-        marginTop: 4,
-    },
-    deleteBtn: {
-        padding: SPACING.sm,
-        marginLeft: SPACING.xs,
-    },
-    emptyState: {
-        alignItems: 'center',
-        marginTop: SPACING.xxl * 2,
-    },
-    emptyTitle: {
-        ...FONTS.subtitle,
-        marginTop: SPACING.md,
-    },
-    emptySubtitle: {
-        ...FONTS.caption,
-        marginTop: SPACING.xs,
-    },
+    qtyBtn: { paddingHorizontal: 10, paddingVertical: 6 },
+    qtyBtnText: { fontSize: 16, color: COLORS.primary, fontWeight: '700' },
+    qtyText: { ...FONTS.bold, fontSize: 14, minWidth: 22, textAlign: 'center' },
+    itemTotal: { ...FONTS.price, fontSize: 13, marginTop: 4 },
+
+    deleteBtn: { padding: SPACING.sm, marginLeft: SPACING.xs },
+    deleteBtnText: { fontSize: 14, color: COLORS.textMuted, fontWeight: '600' },
+
+    emptyState: { alignItems: 'center', marginTop: SPACING.xxl * 2 },
+    emptyBar: { width: 40, height: 4, borderRadius: 2, backgroundColor: COLORS.border, marginBottom: SPACING.sm },
+    emptyTitle: { ...FONTS.subtitle, marginTop: SPACING.xs },
+    emptySubtitle: { ...FONTS.caption, marginTop: SPACING.xs },
+
     bottomBar: {
         position: 'absolute',
         bottom: 0,
         left: 0,
         right: 0,
-        backgroundColor: COLORS.bgSecondary,
+        backgroundColor: COLORS.white,
         borderTopWidth: 1,
-        borderTopColor: COLORS.glassBorder,
+        borderTopColor: COLORS.border,
         paddingHorizontal: SPACING.lg,
         paddingVertical: SPACING.md,
         ...SHADOWS.card,
     },
     savingsRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: SPACING.xs,
-        marginBottom: SPACING.sm,
-        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        backgroundColor: 'rgba(5,150,105,0.08)',
         padding: SPACING.sm,
         borderRadius: RADIUS.sm,
+        marginBottom: SPACING.sm,
+        borderWidth: 1,
+        borderColor: 'rgba(5,150,105,0.15)',
     },
-    savingsText: {
-        color: COLORS.accent,
-        fontSize: 13,
-        fontWeight: '600',
-    },
-    totalRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    totalLabel: {
-        ...FONTS.caption,
-        fontSize: 13,
-    },
-    totalValue: {
-        fontSize: 24,
-        fontWeight: '800',
-        color: COLORS.textPrimary,
-    },
+    savingsText: { color: COLORS.accent, fontSize: 13, fontWeight: '600' },
+    totalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+    totalLabel: { ...FONTS.caption, fontSize: 13 },
+    totalValue: { fontSize: 24, fontWeight: '800', color: COLORS.textPrimary },
     compareBtn: {
+        backgroundColor: COLORS.primary,
         borderRadius: RADIUS.md,
-        overflow: 'hidden',
-        ...SHADOWS.button,
-    },
-    compareBtnInner: {
-        flexDirection: 'row',
-        alignItems: 'center',
         paddingHorizontal: SPACING.lg,
         paddingVertical: SPACING.sm + 2,
-        gap: SPACING.xs,
+        ...SHADOWS.button,
     },
-    compareBtnText: {
-        color: '#fff',
-        fontWeight: '700',
-        fontSize: 15,
-    },
+    compareBtnText: { color: COLORS.white, fontWeight: '700', fontSize: 15 },
 });

@@ -2,7 +2,8 @@
  * API client for Fiscus backend.
  */
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1';
+console.log('[Fiscus] API_BASE:', API_BASE);
 
 class ApiClient {
     constructor() {
@@ -27,8 +28,17 @@ class ApiClient {
 
         console.log(`[API] ${options.method || 'GET'} ${url}`);
 
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
         try {
-            const response = await fetch(url, { ...options, headers });
+            const response = await fetch(url, {
+                ...options,
+                headers,
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+
             let data;
             try {
                 data = await response.json();
@@ -37,12 +47,27 @@ class ApiClient {
             }
 
             if (!response.ok) {
-                const msg = data.error || data.detail || `HTTP ${response.status}`;
+                let msg = data.error || data.detail;
+
+                if (!msg && typeof data === 'object') {
+                    const firstKey = Object.keys(data)[0];
+                    if (firstKey) {
+                        const firstErr = data[firstKey];
+                        msg = Array.isArray(firstErr) ? `${firstKey}: ${firstErr[0]}` : `${firstKey}: ${firstErr}`;
+                    }
+                }
+
+                msg = msg || `HTTP ${response.status}`;
                 console.error(`[API] Error ${response.status} [${endpoint}]:`, msg, data);
                 throw new Error(msg);
             }
             return data;
         } catch (error) {
+            clearTimeout(timeoutId);
+            if (error.name === 'AbortError') {
+                console.error(`[API] Timeout [${endpoint}]`);
+                throw new Error('Перевищено час очікування відповіді від сервера. Перевірте з\'єднання.');
+            }
             console.error(`[API] Error [${endpoint}]:`, error.message);
             throw error;
         }

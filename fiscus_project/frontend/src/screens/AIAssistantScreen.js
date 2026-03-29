@@ -14,8 +14,7 @@ import {
     KeyboardAvoidingView,
     Platform,
 } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import Icon from '../components/Icon';
+
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import apiClient from '../api/client';
@@ -127,11 +126,11 @@ export default function AIAssistantScreen() {
     }, [input, thinking, items, totalPrice]);
 
     const quickActions = [
-        { label: '🏷 Акції', query: 'Які зараз найкращі знижки в АТБ?' },
-        { label: '📊 Мій кошик', query: 'Проаналізуй мій поточний кошик і порадь як заощадити' },
-        { label: '💡 Поради', query: 'Дай 5 порад як економити в супермаркеті' },
-        { label: '🥦 Здорово', query: 'Склади здоровий кошик на тиждень до 500 ₴' },
-        { label: '🔍 Пошук', query: 'Де найдешевше молоко в АТБ?' },
+        { label: 'Акції', query: 'Які зараз найкращі знижки в АТБ?' },
+        { label: 'Мій кошик', query: 'Проаналізуй мій поточний кошик і порадь як заощадити' },
+        { label: 'Поради', query: 'Дай 5 порад як економити в супермаркеті' },
+        { label: 'Здорово', query: 'Склади здоровий кошик на тиждень до 500 ₴' },
+        { label: 'Пошук', query: 'Де найдешевше молоко в АТБ?' },
     ];
 
     const handleQuickAction = useCallback(async (query) => {
@@ -165,24 +164,18 @@ export default function AIAssistantScreen() {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
             {/* Header */}
-            <LinearGradient
-                colors={COLORS.gradientAI}
-                style={styles.header}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-            >
+            <View style={styles.header}>
                 <View style={styles.headerInner}>
                     <View style={styles.aiAvatar}>
-                        <Icon name="sparkles" size={22} color="#fff" />
+                        <Text style={styles.aiAvatarText}>AI</Text>
                     </View>
-                    <View>
+                    <View style={{ flex: 1 }}>
                         <Text style={styles.headerTitle}>Fiscus AI</Text>
                         <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
                             <Text style={styles.headerSub}>Google Gemini · Розумний помічник</Text>
                             {user?.is_pro && (
                                 <View style={styles.proBadge}>
-                                    <Icon name="star" size={10} color={COLORS.accent} />
-                                    <Text style={styles.proText}>PRO</Text>
+                                    <Text style={styles.proText}>★ PRO</Text>
                                 </View>
                             )}
                         </View>
@@ -191,10 +184,10 @@ export default function AIAssistantScreen() {
                         style={styles.settingsBtn} 
                         onPress={() => setShowSettings(!showSettings)}
                     >
-                        <Icon name={showSettings ? "close" : "options-outline"} size={20} color="#fff" />
+                        <Text style={styles.settingsBtnText}>{showSettings ? '✕' : '⚙'}</Text>
                     </TouchableOpacity>
                 </View>
-            </LinearGradient>
+            </View>
 
             {showSettings && (
                 <View style={styles.settingsPanel}>
@@ -238,11 +231,9 @@ export default function AIAssistantScreen() {
             >
                 {messages.map((msg, idx) => (
                     <View key={idx} style={[styles.msgRow, msg.role === 'user' && styles.msgRowUser]}>
-                        {msg.role === 'ai' && (
                             <View style={styles.msgAvatar}>
-                                <Icon name="sparkles" size={10} color={COLORS.primary} />
+                                <Text style={styles.msgAvatarText}>AI</Text>
                             </View>
-                        )}
                         <View style={[styles.msgBubble, msg.role === 'user' ? styles.msgUser : styles.msgAI]}>
                             <Text style={[styles.msgText, msg.role === 'user' && styles.msgTextUser]}>
                                 {msg.text}
@@ -263,7 +254,7 @@ export default function AIAssistantScreen() {
                 {thinking && (
                     <View style={styles.msgRow}>
                         <View style={styles.msgAvatar}>
-                            <Icon name="sparkles" size={10} color={COLORS.primary} />
+                            <Text style={styles.msgAvatarText}>AI</Text>
                         </View>
                         <View style={[styles.msgBubble, styles.msgAI]}>
                             <View style={styles.typingDots}>
@@ -310,7 +301,7 @@ export default function AIAssistantScreen() {
                     onPress={sendMessage}
                     disabled={!input.trim() || thinking}
                 >
-                    <Icon name="send" size={18} color="#fff" />
+                    <Text style={styles.sendBtnText}>↑</Text>
                 </TouchableOpacity>
             </View>
         </KeyboardAvoidingView>
@@ -323,40 +314,28 @@ const styles = StyleSheet.create({
         paddingTop: SPACING.lg,
         paddingBottom: SPACING.md,
         paddingHorizontal: SPACING.lg,
-        borderBottomLeftRadius: RADIUS.xl,
-        borderBottomRightRadius: RADIUS.xl,
+        backgroundColor: COLORS.bgCard,
+        borderBottomWidth: 1,
+        borderBottomColor: COLORS.border,
     },
-    headerInner: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: SPACING.md,
-    },
+    headerInner: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
     aiAvatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        justifyContent: 'center',
-        alignItems: 'center',
+        width: 40, height: 40, borderRadius: 20,
+        backgroundColor: COLORS.primary,
+        justifyContent: 'center', alignItems: 'center',
     },
-    headerTitle: { ...FONTS.subtitle, color: '#fff' },
-    headerSub: { color: 'rgba(255,255,255,0.7)', fontSize: 11 },
-    proBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#000', paddingHorizontal: 6, paddingVertical: 2, borderRadius: RADIUS.sm, gap: 2, borderWidth: 1, borderColor: COLORS.accent },
-    proText: { ...FONTS.bold, color: COLORS.accent, fontSize: 9 },
-    badge: {
-        marginLeft: 'auto',
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        borderRadius: RADIUS.full,
-        paddingHorizontal: SPACING.sm,
-        paddingVertical: 3,
-    },
-    badgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+    aiAvatarText: { fontSize: 16, color: '#fff', fontWeight: '800', letterSpacing: -1 },
+    headerTitle: { ...FONTS.subtitle, color: COLORS.textPrimary },
+    headerSub: { color: COLORS.textMuted, fontSize: 11 },
+    proBadge: { backgroundColor: COLORS.primary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: RADIUS.sm },
+    proText: { color: '#fff', fontSize: 9, fontWeight: '800' },
     settingsBtn: { marginLeft: 'auto', padding: 8 },
+    settingsBtnText: { fontSize: 20, color: COLORS.primary },
     settingsPanel: {
         backgroundColor: COLORS.bgCard,
         padding: SPACING.md,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.borderLight,
+        borderBottomColor: COLORS.border,
         ...SHADOWS.card,
     },
     settingsTitle: { ...FONTS.medium, fontSize: 14, marginBottom: SPACING.sm },
@@ -367,8 +346,8 @@ const styles = StyleSheet.create({
         marginBottom: SPACING.xs,
         fontSize: 13,
         borderWidth: 1,
-        borderColor: COLORS.borderLight,
-        color: '#fff',
+        borderColor: COLORS.border,
+        color: COLORS.textPrimary,
     },
     saveSettingsBtn: {
         backgroundColor: COLORS.primary,
@@ -384,21 +363,18 @@ const styles = StyleSheet.create({
     msgRow: { flexDirection: 'row', marginBottom: SPACING.sm, alignItems: 'flex-end' },
     msgRowUser: { justifyContent: 'flex-end' },
     msgAvatar: {
-        width: 22,
-        height: 22,
-        borderRadius: 11,
-        backgroundColor: COLORS.glass,
-        borderWidth: 1,
-        borderColor: COLORS.glassBorder,
-        justifyContent: 'center',
-        alignItems: 'center',
+        width: 22, height: 22, borderRadius: 11,
+        backgroundColor: COLORS.primarySoft,
+        borderWidth: 1, borderColor: COLORS.border,
+        justifyContent: 'center', alignItems: 'center',
         marginRight: SPACING.xs,
     },
+    msgAvatarText: { fontSize: 10, color: COLORS.primary, fontWeight: '700' },
     msgBubble: { maxWidth: '82%', borderRadius: RADIUS.md, padding: SPACING.sm },
     msgAI: {
-        backgroundColor: COLORS.glass,
+        backgroundColor: COLORS.bgCard,
         borderWidth: 1,
-        borderColor: COLORS.glassBorder,
+        borderColor: COLORS.border,
         borderBottomLeftRadius: 4,
     },
     msgUser: { backgroundColor: COLORS.primary, borderBottomRightRadius: 4 },
@@ -408,9 +384,9 @@ const styles = StyleSheet.create({
 
     quickActions: { maxHeight: 44, marginBottom: SPACING.xs },
     quickBtn: {
-        backgroundColor: COLORS.glass,
+        backgroundColor: COLORS.bgCard,
         borderWidth: 1,
-        borderColor: COLORS.glassBorder,
+        borderColor: COLORS.border,
         borderRadius: RADIUS.full,
         paddingHorizontal: SPACING.md,
         paddingVertical: SPACING.sm,
@@ -419,34 +395,27 @@ const styles = StyleSheet.create({
     quickBtnText: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '600' },
 
     inputBar: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: SPACING.md,
-        paddingVertical: SPACING.sm,
-        borderTopWidth: 1,
-        borderTopColor: COLORS.glassBorder,
-        backgroundColor: COLORS.bgSecondary,
+        flexDirection: 'row', alignItems: 'center',
+        paddingHorizontal: SPACING.md, paddingVertical: SPACING.sm,
+        borderTopWidth: 1, borderTopColor: COLORS.border,
+        backgroundColor: COLORS.bgCard,
         paddingBottom: Platform.OS === 'ios' ? SPACING.lg : SPACING.sm,
     },
     input: {
-        flex: 1,
-        height: 40,
+        flex: 1, height: 40,
         backgroundColor: COLORS.bgInput,
         borderRadius: RADIUS.full,
         paddingHorizontal: SPACING.md,
         color: COLORS.textPrimary,
         fontSize: 14,
-        borderWidth: 1,
-        borderColor: COLORS.borderLight,
+        borderWidth: 1, borderColor: COLORS.border,
     },
     sendBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
+        width: 40, height: 40, borderRadius: 20,
         backgroundColor: COLORS.primary,
-        justifyContent: 'center',
-        alignItems: 'center',
+        justifyContent: 'center', alignItems: 'center',
         marginLeft: SPACING.xs,
         ...SHADOWS.button,
     },
+    sendBtnText: { fontSize: 20, color: '#fff', fontWeight: '700', lineHeight: 24 },
 });

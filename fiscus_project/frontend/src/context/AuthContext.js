@@ -25,9 +25,9 @@ export function AuthProvider({ children }) {
                 apiClient.setToken(storedToken);
                 try {
                     // Try fetching profile to validate the token and get latest fields
-                    const profile = await apiClient.getProfile(); 
+                    const profile = await apiClient.getProfile();
                     setToken(storedToken);
-                    
+
                     const updatedUser = { ...JSON.parse(storedUser), ...profile };
                     setUser(updatedUser);
                     await AsyncStorage.setItem('auth_user', JSON.stringify(updatedUser)); // update stored format
@@ -63,7 +63,9 @@ export function AuthProvider({ children }) {
 
     const login = async (username, password) => {
         try {
+            console.log('[Auth] Attempting login for:', username);
             const data = await apiClient.login(username, password);
+            console.log('[Auth] Login success, token received');
             setToken(data.token);
             setUser(data.user);
             apiClient.setToken(data.token);
@@ -71,13 +73,16 @@ export function AuthProvider({ children }) {
             await AsyncStorage.setItem('auth_user', JSON.stringify(data.user));
             return { success: true };
         } catch (error) {
+            console.error('[Auth] Login error:', error.message);
             return { success: false, error: error.message };
         }
     };
 
     const register = async (username, email, password) => {
         try {
+            console.log('[Auth] Attempting register for:', username);
             const data = await apiClient.register(username, email, password);
+            console.log('[Auth] Register success');
             setToken(data.token);
             setUser(data.user);
             apiClient.setToken(data.token);
@@ -85,6 +90,7 @@ export function AuthProvider({ children }) {
             await AsyncStorage.setItem('auth_user', JSON.stringify(data.user));
             return { success: true };
         } catch (error) {
+            console.error('[Auth] Register error:', error.message);
             return { success: false, error: error.message };
         }
     };

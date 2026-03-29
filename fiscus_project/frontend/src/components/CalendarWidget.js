@@ -2,16 +2,29 @@
  * CalendarWidget — simple monthly calendar with activity dots.
  */
 
-import React, { useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme';
 
 const DAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Нд'];
 
-export default function CalendarWidget({ activeDays = [], month, year }) {
+export default function CalendarWidget({ history = [], defaultMonth, defaultYear }) {
     const now = new Date();
-    const m = month ?? now.getMonth();
-    const y = year ?? now.getFullYear();
+    const [viewDate, setViewDate] = useState(
+        new Date(defaultYear || now.getFullYear(), defaultMonth ?? now.getMonth(), 1)
+    );
+
+    const m = viewDate.getMonth();
+    const y = viewDate.getFullYear();
+
+    const activeDays = useMemo(() => {
+        return history
+            .filter(h => {
+                const d = new Date(h.date);
+                return d.getMonth() === m && d.getFullYear() === y;
+            })
+            .map(h => new Date(h.date).getDate());
+    }, [history, m, y]);
 
     const cells = useMemo(() => {
         const firstDay = new Date(y, m, 1).getDay();
@@ -29,9 +42,20 @@ export default function CalendarWidget({ activeDays = [], month, year }) {
         'Липень', 'Серпень', 'Вересень', 'Жовтень', 'Листопад', 'Грудень',
     ];
 
+    const handlePrevMonth = () => setViewDate(new Date(y, m - 1, 1));
+    const handleNextMonth = () => setViewDate(new Date(y, m + 1, 1));
+
     return (
         <View style={styles.container}>
-            <Text style={styles.monthTitle}>{monthNames[m]} {y}</Text>
+            <View style={styles.headerControls}>
+                <TouchableOpacity onPress={handlePrevMonth} style={styles.arrowBtn}>
+                    <Text style={styles.arrowText}>‹</Text>
+                </TouchableOpacity>
+                <Text style={styles.monthTitle}>{monthNames[m]} {y}</Text>
+                <TouchableOpacity onPress={handleNextMonth} style={styles.arrowBtn}>
+                    <Text style={styles.arrowText}>›</Text>
+                </TouchableOpacity>
+            </View>
 
             <View style={styles.headerRow}>
                 {DAYS.map(d => (
@@ -74,10 +98,23 @@ const styles = StyleSheet.create({
         borderRadius: RADIUS.lg,
         padding: SPACING.md,
     },
+    headerControls: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: SPACING.md,
+    },
     monthTitle: {
         ...FONTS.sectionTitle,
-        textAlign: 'center',
-        marginBottom: SPACING.sm,
+    },
+    arrowBtn: {
+        paddingHorizontal: SPACING.md,
+        paddingVertical: 4,
+    },
+    arrowText: {
+        fontSize: 24,
+        color: COLORS.primary,
+        fontWeight: '300',
     },
     headerRow: {
         flexDirection: 'row',
