@@ -10,18 +10,7 @@ import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme';
 import { CHAINS, getChainName, getChainColor } from '../constants/stores';
 import StoreChip from '../components/StoreChip';
 
-const DEMO_PROMOTIONS = [
-    { id: 'd1', product_name: 'Молоко Яготинське 2.5% 1л', price: 32.90, old_price: 41.50, chain: 'АТБ', chain_slug: 'atb', image_url: 'https://images.unsplash.com/photo-1563636619-e9143da7973b?w=200&q=60' },
-    { id: 'd2', product_name: 'Яйця курячі С1 10шт',        price: 49.90, old_price: 64.00, chain: 'Сільпо', chain_slug: 'silpo', image_url: 'https://images.unsplash.com/photo-1582722872445-44dc5f7e3c8f?w=200&q=60' },
-    { id: 'd3', product_name: 'Гречка Жменька 1кг',          price: 39.90, old_price: 52.00, chain: 'АТБ', chain_slug: 'atb', image_url: 'https://images.unsplash.com/photo-1586201375761-83865001e31c?w=200&q=60' },
-    { id: 'd4', product_name: 'Олія соняшникова 1л',          price: 55.00, old_price: 72.00, chain: 'Ашан', chain_slug: 'auchan', image_url: 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?w=200&q=60' },
-    { id: 'd5', product_name: 'Хліб "Дарницький" 750г',       price: 28.50, old_price: 35.00, chain: 'Сільпо', chain_slug: 'silpo', image_url: 'https://images.unsplash.com/photo-1509440159596-0249088772ff?w=200&q=60' },
-    { id: 'd6', product_name: 'Філе куряче охолоджене 1кг',   price: 119.00, old_price: 158.00, chain: 'АТБ', chain_slug: 'atb', image_url: 'https://images.unsplash.com/photo-1604503468506-a8da13d82791?w=200&q=60' },
-    { id: 'd7', product_name: 'Картопля 2кг',                  price: 34.00, old_price: 44.00, chain: 'Ашан', chain_slug: 'auchan', image_url: 'https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=200&q=60' },
-    { id: 'd8', product_name: 'Сметана Президент 20% 350г',    price: 42.90, old_price: 54.00, chain: 'Сільпо', chain_slug: 'silpo', image_url: 'https://images.unsplash.com/photo-1611329857570-f02db6af1d66?w=200&q=60' },
-    { id: 'd9', product_name: 'Рис довгозернистий 1кг',        price: 44.90, old_price: 58.00, chain: 'АТБ', chain_slug: 'atb', image_url: 'https://images.unsplash.com/photo-1536304993881-ff6e9eefa2a6?w=200&q=60' },
-    { id: 'd10', product_name: 'Цукор білий 1кг',              price: 28.00, old_price: 36.00, chain: 'Ашан', chain_slug: 'auchan', image_url: 'https://images.unsplash.com/photo-1550159930-40066082a4fc?w=200&q=60' },
-];
+
 
 export default function PromotionsScreen() {
     const { promotions, loading, fetchPromotions } = usePromotionStore();
@@ -30,7 +19,7 @@ export default function PromotionsScreen() {
 
     useEffect(() => { fetchPromotions(30, selectedChain); }, [selectedChain]);
 
-    const rawData = (promotions && promotions.length > 0) ? promotions : DEMO_PROMOTIONS;
+    const rawData = promotions || [];
     const displayData = selectedChain
         ? rawData.filter(p => (p.chain_slug || '').toLowerCase() === selectedChain.toLowerCase())
         : rawData;
@@ -89,11 +78,7 @@ export default function PromotionsScreen() {
             <View style={styles.header}>
                 <Text style={styles.headerIcon}>🏷️</Text>
                 <Text style={styles.headerTitle}>Топ акції</Text>
-                {(promotions && promotions.length === 0 && !loading) && (
-                    <View style={styles.demoBadge}>
-                        <Text style={styles.demoText}>demo</Text>
-                    </View>
-                )}
+
             </View>
 
             {/* Chain filter */}
@@ -144,11 +129,7 @@ const styles = StyleSheet.create({
     },
     headerIcon: { fontSize: 20 },
     headerTitle: { ...FONTS.subtitle, color: COLORS.textPrimary },
-    demoBadge: {
-        backgroundColor: COLORS.primarySoft,
-        borderRadius: 6, paddingHorizontal: 8, paddingVertical: 2, marginLeft: 8,
-    },
-    demoText: { color: COLORS.primary, fontSize: 10, fontWeight: '700', letterSpacing: 1 },
+
 
     chips: { marginVertical: SPACING.sm, maxHeight: 40 },
 

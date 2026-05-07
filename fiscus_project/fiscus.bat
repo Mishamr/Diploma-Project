@@ -74,7 +74,26 @@ pushd "%FRONTEND%"
 echo   [*] Expo Dev Server starting...
 echo   [*] Press Ctrl+C to stop
 echo.
-call npx expo start --web
+
+REM Auto-detect LAN IP (192.168.x.x)
+for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /r "192\.168\.[0-9]*\.[0-9]*"') do (
+    set "LAN_IP=%%a"
+    goto :GOTIP_ALL
+)
+:GOTIP_ALL
+set "LAN_IP=%LAN_IP: =%"
+if "%LAN_IP%"=="" set "LAN_IP=localhost"
+echo   [*] LAN IP: %LAN_IP%
+set REACT_NATIVE_PACKAGER_HOSTNAME=%LAN_IP%
+
+REM Update .env with correct API URL
+(
+    echo EXPO_PUBLIC_API_URL=http://%LAN_IP%:8000/api/v1
+    echo EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=834873653875-j72tdq1h10780c4cl3l84f6b09l1h40i.apps.googleusercontent.com
+) > "%FRONTEND%\.env"
+
+
+call npx expo start --clear
 popd
 goto MENU
 
@@ -118,7 +137,26 @@ echo   Expo Dev Server
 echo   Press Ctrl+C to stop
 echo   ============================================
 echo.
-call npx expo start --web
+
+REM Auto-detect LAN IP (192.168.x.x)
+for /f "tokens=2 delims=:" %%a in ('ipconfig ^| findstr /r "192\.168\.[0-9]*\.[0-9]*"') do (
+    set "LAN_IP=%%a"
+    goto :GOTIP_FE
+)
+:GOTIP_FE
+set "LAN_IP=%LAN_IP: =%"
+if "%LAN_IP%"=="" set "LAN_IP=localhost"
+echo   [*] LAN IP: %LAN_IP%
+set REACT_NATIVE_PACKAGER_HOSTNAME=%LAN_IP%
+
+REM Update .env with correct API URL
+(
+    echo EXPO_PUBLIC_API_URL=http://%LAN_IP%:8000/api/v1
+    echo EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=834873653875-j72tdq1h10780c4cl3l84f6b09l1h40i.apps.googleusercontent.com
+) > "%FRONTEND%\.env"
+
+
+call npx expo start --clear
 popd
 goto MENU
 
@@ -197,6 +235,19 @@ echo.
     if "%SC%"=="3" set "CHAIN=auchan"
 
     pushd "%ROOT%"
+
+    REM Check if web container is running, start it if not
+    for /f "tokens=*" %%s in ('docker compose ps --status running --services 2^>nul') do (
+        if "%%s"=="web" set "WEB_RUNNING=1"
+    )
+    if not defined WEB_RUNNING (
+        echo   [!] Backend is not running. Starting Docker services...
+        docker compose up -d
+        echo   [*] Waiting for services to be ready...
+        timeout /t 10 /nobreak >nul
+        set "WEB_RUNNING=1"
+    )
+
     if "%SC%"=="0" (
         echo   [*] Scraping all chains...
         docker compose exec web python manage.py run_scraper --all

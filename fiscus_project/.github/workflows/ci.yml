@@ -1,0 +1,67 @@
+name: Fiscus CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  backend-lint:
+    name: Backend Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install lint dependencies
+        run: pip install flake8 black isort bandit
+
+      - name: Flake8
+        run: flake8 --config ../.flake8 apps/ config/
+
+      - name: Black (check)
+        run: black --check --config ../pyproject.toml apps/ config/
+
+      - name: isort (check)
+        run: isort --check-only --settings-path ../pyproject.toml apps/ config/
+
+      - name: Bandit (security)
+        run: bandit -c ../pyproject.toml -r apps/ --skip B101
+
+  frontend-lint:
+    name: Frontend Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Syntax check
+        run: npx --yes acorn --ecma2020 --module src/api/client.js > /dev/null
+
+  docker-build:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: docker build -t fiscus-backend ./backend

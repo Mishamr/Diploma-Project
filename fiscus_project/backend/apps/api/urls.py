@@ -6,7 +6,7 @@ from django.urls import include, path
 
 from rest_framework.routers import DefaultRouter
 
-from . import monitoring, views, views_auth, views_chains, views_premium
+from . import monitoring, views, views_auth, views_chains, views_geo, views_premium
 
 router = DefaultRouter()
 router.register(r"products", views.ProductViewSet)
@@ -58,6 +58,16 @@ urlpatterns = [
     # Monitoring
     path("health/", monitoring.health_check, name="health"),
     path("status/", monitoring.scraper_status, name="status"),
+    path("scraper/run/", monitoring.run_scraper_api, name="scraper-run"),
+    path("scraper/logs/", monitoring.scraper_logs, name="scraper-logs"),
+    # Geo
+    path("geo/nearby/", views_geo.nearby_stores_view, name="geo-nearby"),
+    path("geo/stores/", views_geo.stores_on_map_view, name="geo-stores"),
+    path(
+        "geo/cheapest-basket/",
+        views_geo.cheapest_basket_view,
+        name="geo-cheapest-basket",
+    ),
     # AI Proxy
     path("ai/chat/", views.ai_chat_view, name="ai-chat"),
 ]

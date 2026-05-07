@@ -14,9 +14,9 @@ import * as Location from 'expo-location';
 
 // ── Demo порівняння для показу ────────────────────────────────────────────────
 const DEMO_RESULTS = [
-    { chain: 'АТБ', chain_slug: 'atb', total_price: 387.40, items_found: 8, missing: [] },
-    { chain: 'Сільпо', chain_slug: 'silpo', total_price: 421.80, items_found: 8, missing: [] },
-    { chain: 'Ашан', chain_slug: 'auchan', total_price: 445.20, items_found: 7, missing: ['Хліб Дарницький'] },
+    { chain: 'АТБ', chain_slug: 'atb', store_address: 'вул. Городоцька, 189', distance_km: 1.2, total_price: 387.40, items_found: 8, missing: [] },
+    { chain: 'Сільпо', chain_slug: 'silpo', store_address: 'вул. Підвальна, 12', distance_km: 2.5, total_price: 421.80, items_found: 8, missing: [] },
+    { chain: 'Ашан', chain_slug: 'auchan', store_address: 'вул. Стрийська, 108', distance_km: 3.1, total_price: 445.20, items_found: 7, missing: ['Хліб Дарницький'] },
 ];
 
 const CHAIN_COLORS = {
@@ -139,6 +139,11 @@ export default function CompareCartScreen({ navigation }) {
                     <Icon name="trophy" size={36} color={COLORS.accent} />
                     <Text style={styles.winnerLabel}>Найкращий вибір</Text>
                     <Text style={styles.winnerChain}>{CHAIN_ICONS[best.chain_slug] || '🏪'} {best.chain}</Text>
+                    {best.store_address && (
+                        <Text style={styles.storeAddress}>
+                            📍 {best.store_address} {best.distance_km !== null && best.distance_km !== undefined ? `• ${best.distance_km} км` : ''}
+                        </Text>
+                    )}
                     <Text style={styles.winnerPrice}>{best.total_price.toFixed(2)} ₴</Text>
                     <Text style={styles.winnerSub}>
                         Знайдено {best.items_found} з {totalRequested} товарів
@@ -164,6 +169,11 @@ export default function CompareCartScreen({ navigation }) {
                                     <Text style={styles.resultIcon}>{CHAIN_ICONS[res.chain_slug] || '🏪'}</Text>
                                     <View>
                                         <Text style={styles.resultChain}>{res.chain}</Text>
+                                        {res.store_address && (
+                                            <Text style={styles.resultAddress}>
+                                                {res.store_address} {res.distance_km !== null && res.distance_km !== undefined ? `(${res.distance_km} км)` : ''}
+                                            </Text>
+                                        )}
                                         <Text style={styles.resultCoverage}>{coveragePct}% товарів</Text>
                                     </View>
                                 </View>
@@ -233,6 +243,7 @@ const styles = StyleSheet.create({
     },
     winnerLabel: { ...FONTS.medium, color: COLORS.textSecondary, marginTop: SPACING.sm, fontSize: 13 },
     winnerChain: { ...FONTS.bold, fontSize: 26, color: COLORS.textPrimary, marginVertical: 4 },
+    storeAddress: { ...FONTS.medium, fontSize: 13, color: COLORS.textSecondary, marginBottom: SPACING.xs, textAlign: 'center' },
     winnerPrice: { ...FONTS.price, fontSize: 38, color: COLORS.accent },
     winnerSub: { ...FONTS.caption, marginTop: 4 },
     savingsBadge: {
@@ -256,6 +267,7 @@ const styles = StyleSheet.create({
     resultLeft: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
     resultIcon: { fontSize: 24 },
     resultChain: { ...FONTS.bold, fontSize: 16 },
+    resultAddress: { ...FONTS.caption, fontSize: 11, color: COLORS.textMuted, marginTop: 2, maxWidth: 200 },
     resultCoverage: { ...FONTS.caption, fontSize: 11, marginTop: 1 },
     resultRight: { alignItems: 'flex-end' },
     resultPrice: { ...FONTS.price, fontSize: 20 },

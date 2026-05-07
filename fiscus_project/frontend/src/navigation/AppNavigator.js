@@ -29,6 +29,11 @@ import ExpenseCalendarScreen from '../screens/ExpenseCalendarScreen';
 import AdVideoScreen from '../screens/AdVideoScreen';
 import StoreScreen from '../screens/StoreScreen';
 import PaymentScreen from '../screens/PaymentScreen';
+import ScraperScreen from '../screens/ScraperScreen';
+import FavoritesScreen from '../screens/FavoritesScreen';
+import CartHistoryScreen from '../screens/CartHistoryScreen';
+import CategoryProductPickerScreen from '../screens/CategoryProductPickerScreen';
+import { FavoritesProvider } from '../context/FavoritesContext';
 
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -136,6 +141,7 @@ export default function AppNavigator() {
     if (loading) return null;
 
     return (
+        <FavoritesProvider>
         <NavigationContainer
             theme={{
                 dark: false,
@@ -165,9 +171,22 @@ export default function AppNavigator() {
                         <Stack.Screen name={ROUTES.AD_VIDEO} component={AdVideoScreen} options={{ headerShown: false }} />
                         <Stack.Screen name={ROUTES.STORE} component={StoreScreen} options={{ headerShown: true, title: 'Магазин тікетів', ...STACK_HEADER }} />
                         <Stack.Screen name={ROUTES.PAYMENT} component={PaymentScreen} options={{ headerShown: true, title: 'Оформлення PRO', ...STACK_HEADER }} />
+                        <Stack.Screen name={ROUTES.SCRAPER} component={ScraperScreen} options={{ headerShown: false }} />
+                        <Stack.Screen name={ROUTES.FAVORITES} component={FavoritesScreen} options={{ headerShown: true, title: '❤ Улюблені', ...STACK_HEADER }} />
+                        <Stack.Screen name={ROUTES.CART_HISTORY} component={CartHistoryScreen} options={{ headerShown: true, title: '📋 Історія кошиків', ...STACK_HEADER }} />
+                        <Stack.Screen
+                            name={ROUTES.CATEGORY_PRODUCT_PICKER}
+                            component={CategoryProductPickerScreen}
+                            options={({ route }) => ({
+                                headerShown: true,
+                                title: route.params?.categoryName || 'Вибір товару',
+                                ...STACK_HEADER,
+                            })}
+                        />
                     </>
                 )}
             </Stack.Navigator>
         </NavigationContainer>
+        </FavoritesProvider>
     );
 }

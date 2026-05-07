@@ -2,8 +2,7 @@
  * API client for Fiscus backend.
  */
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1';
-console.log('[Fiscus] API_BASE:', API_BASE);
+const API_BASE = (process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:8000/api/v1').trim();
 
 class ApiClient {
     constructor() {
@@ -25,8 +24,6 @@ class ApiClient {
             ...(this.token ? { 'Authorization': `Token ${this.token}` } : {}),
             ...options.headers,
         };
-
-        console.log(`[API] ${options.method || 'GET'} ${url}`);
 
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
@@ -176,6 +173,12 @@ class ApiClient {
         return this._request(`/products/?search=${encodeURIComponent(query)}`);
     }
 
+    async getProductAlternatives(productId, maxPrice = null) {
+        let endpoint = `/products/${productId}/alternatives/`;
+        if (maxPrice != null) endpoint += `?max_price=${maxPrice}`;
+        return this._request(endpoint);
+    }
+
     async comparePrice(productId) {
         return this._request(`/compare/?product_id=${productId}`);
     }
@@ -242,8 +245,8 @@ class ApiClient {
         return this._request(endpoint);
     }
 
-    async getSurvivalBasket(budget = 5000, days = 7, lat = null, lon = null, chain = null) {
-        let endpoint = `/survival/?budget=${budget}&days=${days}`;
+    async getSurvivalBasket(budget = 5000, days = 7, lat = null, lon = null, chain = null, mealsPerDay = 3) {
+        let endpoint = `/survival/?budget=${budget}&days=${days}&meals_per_day=${mealsPerDay}`;
         if (lat && lon) endpoint += `&lat=${lat}&lon=${lon}`;
         if (chain) endpoint += `&chain=${chain}`;
         return this._request(endpoint);

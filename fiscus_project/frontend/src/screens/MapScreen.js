@@ -4,7 +4,7 @@
  * На мобайл: react-native-maps.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
     View,
     Text,
@@ -26,15 +26,7 @@ import { useLocation } from '../hooks';
 import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme';
 import { CHAINS, getChainColor } from '../constants/stores';
 
-// ── Demo магазини (показуємо якщо БД порожня) ─────────────────────────────────
-const DEMO_STORES = [
-    { id: 1, name: 'АТБ Центральний',    chain: 'АТБ',    chain_slug: 'atb',    latitude: 50.4501, longitude: 30.5234, address: 'вул. Хрещатик, 1',              distance_km: 0.3 },
-    { id: 2, name: 'Сільпо Олімпійська', chain: 'Сільпо', chain_slug: 'silpo',  latitude: 50.4398, longitude: 30.5179, address: 'вул. Велика Васильківська, 55',  distance_km: 0.8 },
-    { id: 3, name: 'Ашан Блокбастер',    chain: 'Ашан',   chain_slug: 'auchan', latitude: 50.4611, longitude: 30.4864, address: 'просп. Перемоги, 42',            distance_km: 1.5 },
-    { id: 4, name: 'АТБ Шевченківський', chain: 'АТБ',    chain_slug: 'atb',    latitude: 50.4587, longitude: 30.5095, address: 'вул. Шевченка, 24',              distance_km: 1.8 },
-    { id: 5, name: 'Сільпо Ocean Plaza', chain: 'Сільпо', chain_slug: 'silpo',  latitude: 50.4271, longitude: 30.5076, address: 'вул. Антоновича, 176',           distance_km: 2.3 },
-    { id: 6, name: 'Ашан Ретровіль',     chain: 'Ашан',   chain_slug: 'auchan', latitude: 50.4450, longitude: 30.5700, address: 'вул. Братиславська, 12',         distance_km: 3.1 },
-];
+
 
 const CHAIN_ICONS = { atb: '🔴', silpo: '🟠', auchan: '🟢' };
 
@@ -61,9 +53,8 @@ function buildLeafletHTML(stores, centerLat = 50.4501, centerLon = 30.5234) {
         return `
 L.marker([${s.latitude}, ${s.longitude}], {
   icon: L.divIcon({
-    className: '',
-    html: '<div style="background:${color};width:16px;height:16px;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,0.5);"></div>',
-    iconSize: [16, 16], iconAnchor: [8, 8], popupAnchor: [0, -10]
+    html: '<svg width="28" height="36" viewBox="0 0 24 32" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0px 4px 4px rgba(0,0,0,0.3));"><path d="M12 0C5.373 0 0 5.373 0 12c0 7.857 12 20 12 20s12-12.143 12-20C24 5.373 18.627 0 12 0z" fill="${color}"/><circle cx="12" cy="12" r="5" fill="#fff"/></svg>',
+    iconSize: [28, 36], iconAnchor: [14, 36], popupAnchor: [0, -36]
   })
 }).addTo(map).bindPopup(
   '<div style="font-family:sans-serif;min-width:160px;">' +
@@ -85,14 +76,14 @@ L.marker([${s.latitude}, ${s.longitude}], {
 <style>
   html,body,#map { margin:0;padding:0;width:100%;height:100%;background:#0f172a; }
   .leaflet-popup-content-wrapper { border-radius: 10px; }
-  .leaflet-tile { filter: brightness(0.88) saturate(0.75); }
+  .leaflet-tile { filter: none; }
 </style>
 </head>
 <body>
 <div id="map"></div>
 <script>
 var map = L.map('map', { zoomControl: true }).setView([${centerLat}, ${centerLon}], 13);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
   attribution: '&copy; OpenStreetMap &copy; CartoCDN',
   maxZoom: 19
 }).addTo(map);
@@ -104,23 +95,40 @@ ${markers}
 
 export default function MapScreen() {
     const { location, loading: locLoading } = useLocation();
-    const { mapStores, nearbyStores, fetchMapStores, fetchNearby } = useGeoStore();
+    const { mapStores, nearbyStores, fetchMapStores, fetchNearby, loading: geoLoading } = useGeoStore();
     const [selectedChain, setSelectedChain] = useState(null);
+    const mapRef = useRef(null);
 
     useEffect(() => { fetchMapStores(selectedChain); }, [selectedChain]);
 
+    // Re-fetch nearby stores on every live location update and auto-center map
     useEffect(() => {
-        if (location) fetchNearby(location.latitude, location.longitude);
+        if (!location) return;
+        fetchNearby(location.latitude, location.longitude);
+        // Auto-animate map to new position (mobile only)
+        if (mapRef.current && Platform.OS !== 'web') {
+            mapRef.current.animateToRegion({
+                latitude: location.latitude,
+                longitude: location.longitude,
+                latitudeDelta: 0.06,
+                longitudeDelta: 0.06,
+            }, 600);
+        }
     }, [location]);
 
-    const displayStores = (nearbyStores && nearbyStores.length > 0) ? nearbyStores : DEMO_STORES;
-    const filteredStores = selectedChain
-        ? displayStores.filter(s => (s.chain_slug || '').toLowerCase() === selectedChain)
-        : displayStores;
+    const displayNearbyStores = nearbyStores || [];
+    const filteredNearbyStores = selectedChain
+        ? displayNearbyStores.filter(s => (s.chain_slug || '').toLowerCase() === selectedChain)
+        : displayNearbyStores;
+
+    const displayMapStores = mapStores || [];
+    const filteredMapStores = selectedChain
+        ? displayMapStores.filter(s => (s.chain_slug || '').toLowerCase() === selectedChain)
+        : displayMapStores;
 
     const centerLat = location?.latitude  || 50.4501;
     const centerLon = location?.longitude || 30.5234;
-    const leafletHTML = buildLeafletHTML(filteredStores, centerLat, centerLon);
+    const leafletHTML = buildLeafletHTML(filteredMapStores, centerLat, centerLon);
 
     const initialRegion = {
         latitude: centerLat, longitude: centerLon,
@@ -145,12 +153,14 @@ export default function MapScreen() {
                     />
                 ) : (
                     <MapView
+                        ref={mapRef}
                         style={styles.map}
                         initialRegion={initialRegion}
                         showsUserLocation
                         showsMyLocationButton
+                        followsUserLocation={false}
                     >
-                        {filteredStores.map(store => (
+                        {filteredMapStores.map(store => (
                             <Marker
                                 key={store.id}
                                 coordinate={{ latitude: store.latitude, longitude: store.longitude }}
@@ -188,16 +198,18 @@ export default function MapScreen() {
             {/* Nearby stores list — scrollable */}
             <View style={styles.storeListWrapper}>
                 <Text style={styles.sectionTitle}>
-                    🏪 Найближчі магазини ({filteredStores.length})
+                    🏪 Найближчі магазини ({filteredNearbyStores.length})
                 </Text>
                 <ScrollView
                     showsVerticalScrollIndicator={Platform.OS === 'web'}
                     contentContainerStyle={styles.storeList}
                 >
-                    {filteredStores.length === 0 ? (
+                    {geoLoading ? (
                         <Text style={styles.emptyText}>Магазини завантажуються...</Text>
+                    ) : filteredNearbyStores.length === 0 ? (
+                        <Text style={styles.emptyText}>В радіусі 2 км магазинів не знайдено.</Text>
                     ) : (
-                        filteredStores.map(item => (
+                        filteredNearbyStores.map(item => (
                             <TouchableOpacity
                                 key={String(item.id)}
                                 style={styles.storeCard}
@@ -235,7 +247,7 @@ const styles = StyleSheet.create({
         ? { height: '100vh', backgroundColor: COLORS.bgPrimary, overflow: 'hidden', display: 'flex', flexDirection: 'column' }
         : { flex: 1, backgroundColor: COLORS.bgPrimary },
     mapContainer: Platform.OS === 'web'
-        ? { height: '40%', overflow: 'hidden' }
+        ? { height: '60%', overflow: 'hidden' }
         : { height: 280, overflow: 'hidden' },
     map: { flex: 1 },
     mapCenter: {

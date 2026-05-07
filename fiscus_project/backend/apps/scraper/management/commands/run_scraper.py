@@ -43,11 +43,10 @@ class Command(BaseCommand):
         shop_id_input = options.get("shop_id")
 
         if options["all_chains"] or not options["chain"]:
-            self.stdout.write(self.style.NOTICE("▶ Scraping ALL chains..."))
-            # When scraping all, run_all needs to handle store mapping internally or we skip it for now
-            # To be safe, we pass shop_id=1 as fallback
+            self.stdout.write(self.style.NOTICE(">> Scraping ALL chains..."))
+            # When scraping all, run_all needs to handle store mapping internally
             run_all(shop_id=shop_id_input or 1)
-            self.stdout.write(self.style.SUCCESS("✓ Done!"))
+            self.stdout.write(self.style.SUCCESS("[OK] Done!"))
         else:
             chain_slug = options["chain"]
 

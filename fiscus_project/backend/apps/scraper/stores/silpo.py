@@ -125,38 +125,39 @@ class SilpoScraper:
 
         cat_data = cat_resp.json()
         for item in cat_data.get("items", []):
-            if item.get("parentId") is None:
-                slug = item.get("slug", "")
-                # Skip non-food categories
-                if slug in NON_FOOD_SLUGS:
-                    continue
-                # Also skip by partial match for safety
-                slug_lower = slug.lower()
-                if any(
-                    kw in slug_lower
-                    for kw in [
-                        "khimi",
-                        "higien",
-                        "kosmet",
-                        "tvary",
-                        "tobacco",
-                        "tiutiun",
-                        "kancel",
-                        "aptek",
-                        "pharm",
-                        "elektron",
-                        "tekhn",
-                        "vzutt",
-                        "odezh",
-                        "igras",
-                        "alkoh",
-                        "pidguz",
-                    ]
-                ):
-                    continue
-                self.dynamic_categories.append(
-                    {"slug": slug, "title": item.get("title")}
-                )
+            # parentId can be None OR 0 — both mean top-level category
+            parent_id = item.get("parentId")
+            if parent_id is not None and parent_id != 0:
+                continue
+            slug = item.get("slug", "")
+            # Skip non-food categories
+            if slug in NON_FOOD_SLUGS:
+                continue
+            # Also skip by partial match for safety
+            slug_lower = slug.lower()
+            if any(
+                kw in slug_lower
+                for kw in [
+                    "khimi",
+                    "higien",
+                    "kosmet",
+                    "tvary",
+                    "tobacco",
+                    "tiutiun",
+                    "kancel",
+                    "aptek",
+                    "pharm",
+                    "elektron",
+                    "tekhn",
+                    "vzutt",
+                    "odezh",
+                    "igras",
+                    "alkoh",
+                    "pidguz",
+                ]
+            ):
+                continue
+            self.dynamic_categories.append({"slug": slug, "title": item.get("title")})
 
         print(
             f"[{self.CHAIN_NAME}] Початок збору даних (async). Магазин ID: {self.shop_id}",

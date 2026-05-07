@@ -146,12 +146,12 @@ def _get_available_products_summary(user_lat=None, user_lon=None, limit=200):
             )
         return data
 
-    # Try 5km first, then relax to 15km, then 100km if needed
-    products_data = get_products(max_dist=5.0)
+    # Try 2km first, then relax to 5km, then 15km if needed
+    products_data = get_products(max_dist=2.0)
     if len(products_data) < 50:
-        products_data = get_products(max_dist=15.0)
+        products_data = get_products(max_dist=5.0)
     if len(products_data) < 20:
-        products_data = get_products(max_dist=100.0)
+        products_data = get_products(max_dist=15.0)
 
     # Sort by distance first if lat/lon provided, else by price
     if user_lat and user_lon:
@@ -194,9 +194,9 @@ def call_ai_provider(prompt, max_tokens=1024, temperature=0.3):
     # ─── 1. Groq — пріоритет (безкоштовний, швидкий, «безліміт токенів») ───
     if api_key_groq:
         groq_models = [
-            "llama3-70b-8192",       # найкращий безкоштовний
-            "llama3-8b-8192",         # лайтовий failover
-            "mixtral-8x7b-32768",     # ще один варіант
+            "llama3-70b-8192",  # найкращий безкоштовний
+            "llama3-8b-8192",  # лайтовий failover
+            "mixtral-8x7b-32768",  # ще один варіант
         ]
         for model in groq_models:
             url = "https://api.groq.com/openai/v1/chat/completions"
@@ -326,38 +326,68 @@ def _parse_json_from_response(text):
 
 
 # ─── AI-powered shopping list generation ───
-def _ai_generate_shopping_list(budget, days, products_summary):
+def _ai_generate_shopping_list(budget, days, products_summary, meals_per_day=3):
     """
     Ask Gemini to generate an optimal shopping list from available products.
-    Returns list of {product_id, quantity, reason}.
+    Returns list of {product_id, quantity, reason, buy_frequency}.
     """
-    prompt = f"""Ти — AI-дієтолог та фінансовий оптимізатор в українському додатку для порівняння цін.
+    prompt = f"""Ти — AI-помічник з планування харчування в українському додатку для порівняння цін.
 
 ЗАВДАННЯ: Склади оптимальний список покупок на {days} днів з бюджетом {budget} грн.
+Людина їсть {meals_per_day} рази на день.
 
-ПРАВИЛА:
+КРИТИЧНІ ПРАВИЛА ЩОДО ТЕРМІНУ ПРИДАТНОСТІ:
+1. Хліб, молочні продукти, м'ясо — ШВИДКОПСУВНІ. НЕ купуй 30 хлібин на місяць! Враховуй термін зберігання:
+   - Хліб: зберігається 2-3 дні → купувати кожні 2-3 дні (на {days} днів = {max(1, days // 3)} покупок по 1-2 шт.)
+   - Молоко, кефір, сметана: 5-7 днів → купувати раз на тиждень
+   - Свіже м'ясо/курка: 2-3 дні в холодильнику → купувати 2 рази на тиждень або заморозити
+   - Яйця: 2-3 тижні → купувати раз на 2 тижні
+2. Крупи, макарони, олія, цукор, борошно — ДОВГОЗБЕРІГАЮЧІ, можна купити одразу на весь період
+3. Овочі: картопля, цибуля, морква — 2-3 тижні; помідори, огірки — 3-5 днів
+
+ВАЖЛИВО (РІЗНОМАНІТНІСТЬ): Кожен раз генеруй УНІКАЛЬНИЙ набір продуктів! Змінюй типи м'яса, гарніри та овочі, щоб користувач отримував НОВІ варіанти страв при кожній генерації.
+
+ПРАВИЛА СКЛАДАННЯ СПИСКУ:
 1. Обирай ТІЛЬКИ товари з наданого списку (використовуй їх ID)
-2. Забезпеч збалансоване харчування: крупи, хліб, молочка, м'ясо/риба, овочі, олія, яйця. ВАЖЛИВО: меню має бути різноманітним на кожен день (щоб готувати різні страви: пасту, суп, капусняк, борщ тощо).
-3. Загальна вартість НЕ ПОВИННА перевищити {budget} грн
-4. Для кожного товару вкажи кількість (скільки штук купити на {days} днів)
-5. Обирай найдешевші варіанти, але з урахуванням якості
-6. Враховуй акційні товари (позначені [АКЦІЯ]) — вони вигідніші
-7. Кількість повинна бути цілим числом ≥ 1
-8. СУВОРО: Відбирай ТІЛЬКИ продукти харчування та напої. ЗАБОРОНЕНО додавати гігієну, косметику, побутову хімію чи товари для дому (навіть якщо вони є в списку)!
+2. На кожен прийом їжі має бути достатньо інгредієнтів для ПРОСТОЇ ДОМАШНЬОЇ СТРАВИ:
+   - Сніданок: каша/яйця/бутерброди + напій
+   - Обід: суп/борщ/паста + гарнір + напій
+   - Вечеря: м'ясо/риба + гарнір з овочів + напій
+3. Страви мають ЗМІНЮВАТИСЯ день від дня (різноманітність!). Плануй щоб інгредієнти дозволяли готувати різне: борщ, суп, пасту, кашу, смажену картоплю, салат, омлет тощо
+4. Всі страви — з ПРОСТИХ інгредієнтів, які можна приготувати вдома
+5. Не забудь про НАПОЇ: чай, кава або воду
+6. Загальна вартість НЕ ПОВИННА перевищити {budget} грн
+7. Обирай найдешевші варіанти з урахуванням якості
+8. Враховуй акційні товари (позначені [АКЦІЯ])
+9. Кількість — ціле число ≥ 1, але РЕАЛІСТИЧНЕ для терміну зберігання
+10. СУВОРО: Тільки продукти харчування та напої. ЗАБОРОНЕНО: гігієна, косметика, побутова хімія
+
+СУМІСНІСТЬ ПРОДУКТІВ (окремо нормальні, разом шкодять — уникай!):
+- Огірки + помідори (одночасно блокують засвоєння вітамінів один одного)
+- Огірки + молоко/кефір (розлад шлунку)
+- Риба + молочні продукти (важке травлення, здуття)
+- Селедка + молоко (класична несумісність)
+- Дині/кавун — їсти ОКРЕМО від будь-якої іншої їжі (мінімум 30 хв)
+- Яйця + риба (перевантаження білком, важко для шлунку)
+- Банани + молоко (здуття, важкість)
+- Мед — НЕ додавати в гарячі напої (вище 40°С руйнуються корисні речовини)
+- Фрукти — краще їсти окремо, НЕ після важкої їжі (бродіння в шлунку)
+- Кожна страва має бути логічною комбінацією: борщ (буряк+капуста+морква+м'ясо+картопля), паста (макарони+м'ясо/овочі), каша (крупа+масло) тощо
 
 ДОСТУПНІ ТОВАРИ (формат: ID|Назва|Категорія|Ціна|Мережа|Відстань):
 {products_summary}
 
 Відповідай ТІЛЬКИ у форматі JSON (без markdown, без коментарів):
 [
-  {{"product_id": 123, "quantity": 2, "reason": "Недорога основа раціону"}},
+  {{"product_id": 123, "quantity": 2, "reason": "Гречка на весь період, довго зберігається", "buy_frequency": "раз на {days} днів"}},
+  {{"product_id": 456, "quantity": 1, "reason": "Хліб на 2-3 дні, треба купувати свіжий", "buy_frequency": "кожні 2-3 дні"}},
   ...
 ]
-ВАЖЛИВО: Якщо бюджет занадто малий для такої кількості днів, обери хоча б мінімальний набір продуктів (хліб, крупи).
+ВАЖЛИВО: Quantity — це кількість на ОДНУ закупку (для швидкопсувних) або на весь період (для довгозберігаючих). Якщо бюджет малий — обери мінімальний набір.
 """
 
     try:
-        response = call_ai_provider(prompt, max_tokens=1500, temperature=0.3)
+        response = call_ai_provider(prompt, max_tokens=2000, temperature=0.8)
         return _parse_json_from_response(response)
     except Exception as e:
         logger.error(f"Survival AI generation failed: {e}")
@@ -374,19 +404,22 @@ def _ai_analyze_basket(basket_items, budget, days, total_cost):
         ]
     )
 
-    prompt = f"""Ти — дієтолог і фінансовий консультант додатку Fiscus.
+    prompt = f"""Ти — помічник з планування харчування в додатку Fiscus.
 Користувач склав кошик на {days} днів з бюджетом {budget} грн (сума: {total_cost:.2f} грн).
 
 Кошик:
 {basket_desc}
 
-Дай 2-4 коротких поради (кожна — одне речення). 
-Оціни збалансованість, вигідність, можливості заощадити.
+Дай 3-4 пункти корисних порад:
+- Оціни збалансованість та вигідність.
+- Порадь щодо зберігання швидкопсувних продуктів.
+- НАЙГОЛОВНІШЕ: Напиши "Рекомендоване меню (що з цього приготувати):" і коротко перелічи 3-4 конкретні прості страви, які можна зготувати саме з цих продуктів.
 Кожен пункт з нового рядка. Без смайликів та емодзі. Без зірочок markdown."""
 
-    response = call_ai_provider(prompt, max_tokens=400, temperature=0.7)
+    response = call_ai_provider(prompt, max_tokens=800, temperature=0.7)
     if response and not str(response).startswith("Error:"):
-        return [line.strip() for line in response.split("\n") if line.strip()]
+        tips = [line.strip() for line in response.split("\n") if line.strip()]
+        return tips
     return ["AI-аналіз тимчасово недоступний (перевищено ліміти)."]
 
 
@@ -476,7 +509,9 @@ def get_ai_substitutions(
 
 
 # ─── Main basket generation ───
-def generate_survival_basket(budget=5000, days=7, lat=None, lon=None, chain=None):
+def generate_survival_basket(
+    budget=5000, days=7, lat=None, lon=None, chain=None, meals_per_day=3
+):
     """
     Generate a budget-optimized food basket.
     Uses Gemini AI to select optimal products from real DB data.
@@ -503,7 +538,7 @@ def generate_survival_basket(budget=5000, days=7, lat=None, lon=None, chain=None
         return _build_demo_basket(budget, days)
 
     # Try AI-powered generation first
-    ai_picks = _ai_generate_shopping_list(budget, days, products_summary)
+    ai_picks = _ai_generate_shopping_list(budget, days, products_summary, meals_per_day)
 
     if ai_picks:
         basket_items = _build_basket_from_ai(ai_picks, products_data, budget_decimal)
@@ -514,6 +549,8 @@ def generate_survival_basket(budget=5000, days=7, lat=None, lon=None, chain=None
     else:
         # Fallback to keyword-based algorithm
         basket_items = _build_basket_fallback(budget_decimal, days, lat, lon, chain)
+
+    basket_items = _cap_basket_to_budget(basket_items, budget_decimal)
 
     # If still empty — use demo
     if not basket_items:
@@ -532,14 +569,19 @@ def generate_survival_basket(budget=5000, days=7, lat=None, lon=None, chain=None
             ]
     else:
         tips = [
-            "⚠️ AI зараз перевантажений, тому ми сформували базовий раціон виживання.",
-            "Цей список містить лише найнеобхідніше: хліб, крупи, молочні продукти та овочі.",
-            "Спробуйте згенерувати AI-список через хвилину.",
+            "Сервіс тимчасово перевантажений, тому сформовано базовий раціон виживання.",
+            "Список містить найнеобхідніше: хліб, крупи, молочні продукти та овочі.",
+            "Спробуйте оновити список через хвилину для отримання детального аналізу.",
         ]
+
+    # Add AI disclaimer to all tips
+    disclaimer = "Увага: цей список складено штучним інтелектом і має рекомендаційний характер. AI не є професійним дієтологом — за потреби проконсультуйтеся з фахівцем. Відповідальність за вибір продуктів несе користувач."
+    tips.append(disclaimer)
 
     return {
         "budget": budget,
         "days": days,
+        "meals_per_day": meals_per_day,
         "ai_generated": bool(ai_picks),
         "items": basket_items,
         "total_cost": float(total_cost),
@@ -654,7 +696,7 @@ def _build_basket_fallback(budget_decimal, days, lat, lon, chain=None):
             }
         )
 
-    return basket_items
+    return _cap_basket_to_budget(basket_items, budget_decimal)
 
 
 def _find_cheapest_product(keywords, user_lat=None, user_lon=None, chain=None):
@@ -732,57 +774,305 @@ def _calculate_quantity(needed_kg, weight_per_unit_kg):
     return max(1, math.ceil(needed_kg / weight_per_unit_kg))
 
 
+def _cap_basket_to_budget(items, budget_decimal):
+    """Ensure the total cost of the basket does not exceed the budget."""
+    running_total = Decimal("0.00")
+    capped_items = []
+
+    for item in items:
+        item_price = Decimal(str(item.get("price_per_unit", item.get("price", 0))))
+        item_qty = int(item.get("quantity", 1))
+
+        if running_total + item_price * item_qty > budget_decimal:
+            max_qty = int((budget_decimal - running_total) / item_price)
+            if max_qty > 0:
+                item["quantity"] = max_qty
+                item["total"] = float(item_price * max_qty)
+                capped_items.append(item)
+                running_total += item_price * max_qty
+            continue
+
+        item["total"] = float(item_price * item_qty)
+        capped_items.append(item)
+        running_total += item_price * item_qty
+
+    return capped_items
+
+
 def _build_demo_basket(budget, days):
     """Fallback realistic data when database is completely empty."""
     budget_decimal = Decimal(str(budget))
     daily_budget = budget_decimal / max(1, days)
-    
+
     # 3 categories of baskets based on daily budget
     if daily_budget < 200:
         # Minimal survival
         items = [
-            {"product_id": 1, "name": "Хліб пшеничний половинка", "category": "Хлібобулочні", "quantity": days, "price": "18.50", "total": f"{18.5 * days:.2f}", "chain": "АТБ", "store": "АТБ №1", "distance_km": 0.5},
-            {"product_id": 2, "name": "Крупа гречана 1кг", "category": "Бакалія", "quantity": max(1, days // 3), "price": "34.90", "total": f"{34.9 * max(1, days // 3):.2f}", "chain": "АТБ", "store": "АТБ №1", "distance_km": 0.5},
-            {"product_id": 3, "name": "Макарони 1кг", "category": "Бакалія", "quantity": max(1, days // 4), "price": "29.40", "total": f"{29.4 * max(1, days // 4):.2f}", "chain": "Сільпо", "store": "Сільпо №3", "distance_km": 1.2},
-            {"product_id": 4, "name": "Картопля ваговий 1кг", "category": "Овочі", "quantity": days, "price": "14.20", "total": f"{14.2 * days:.2f}", "chain": "Ашан", "store": "Ашан", "distance_km": 2.5},
-            {"product_id": 5, "name": "Олія соняшникова 850мл", "category": "Бакалія", "quantity": 1, "price": "56.00", "total": "56.00", "chain": "АТБ", "store": "АТБ №1", "distance_km": 0.5},
-            {"product_id": 6, "name": "Яйця курячі 10шт С1", "category": "Молочні", "quantity": max(1, days // 5), "price": "45.00", "total": f"{45.0 * max(1, days // 5):.2f}", "chain": "Сільпо", "store": "Сільпо №3", "distance_km": 1.2},
+            {
+                "product_id": 1,
+                "name": "Хліб пшеничний половинка",
+                "category": "Хлібобулочні",
+                "quantity": days,
+                "price": "18.50",
+                "total": f"{18.5 * days:.2f}",
+                "chain": "АТБ",
+                "store": "АТБ №1",
+                "distance_km": 0.5,
+            },
+            {
+                "product_id": 2,
+                "name": "Крупа гречана 1кг",
+                "category": "Бакалія",
+                "quantity": max(1, days // 3),
+                "price": "34.90",
+                "total": f"{34.9 * max(1, days // 3):.2f}",
+                "chain": "АТБ",
+                "store": "АТБ №1",
+                "distance_km": 0.5,
+            },
+            {
+                "product_id": 3,
+                "name": "Макарони 1кг",
+                "category": "Бакалія",
+                "quantity": max(1, days // 4),
+                "price": "29.40",
+                "total": f"{29.4 * max(1, days // 4):.2f}",
+                "chain": "Сільпо",
+                "store": "Сільпо №3",
+                "distance_km": 1.2,
+            },
+            {
+                "product_id": 4,
+                "name": "Картопля ваговий 1кг",
+                "category": "Овочі",
+                "quantity": days,
+                "price": "14.20",
+                "total": f"{14.2 * days:.2f}",
+                "chain": "Ашан",
+                "store": "Ашан",
+                "distance_km": 2.5,
+            },
+            {
+                "product_id": 5,
+                "name": "Олія соняшникова 850мл",
+                "category": "Бакалія",
+                "quantity": 1,
+                "price": "56.00",
+                "total": "56.00",
+                "chain": "АТБ",
+                "store": "АТБ №1",
+                "distance_km": 0.5,
+            },
+            {
+                "product_id": 6,
+                "name": "Яйця курячі 10шт С1",
+                "category": "Молочні",
+                "quantity": max(1, days // 5),
+                "price": "45.00",
+                "total": f"{45.0 * max(1, days // 5):.2f}",
+                "chain": "Сільпо",
+                "store": "Сільпо №3",
+                "distance_km": 1.2,
+            },
         ]
     elif daily_budget < 500:
         # Balanced
         items = [
-            {"product_id": 1, "name": "Хліб тостовий 500г", "category": "Хлібобулочні", "quantity": max(1, days // 2), "price": "28.50", "total": f"{28.5 * max(1, days // 2):.2f}", "chain": "Сільпо", "store": "Сільпо №3", "distance_km": 1.2},
-            {"product_id": 2, "name": "Філе куряче охолоджене 1кг", "category": "М'ясо", "quantity": max(1, days // 3), "price": "165.00", "total": f"{165.0 * max(1, days // 3):.2f}", "chain": "Ашан", "store": "Ашан", "distance_km": 2.5},
-            {"product_id": 3, "name": "Макарони з твердих сортів пшениці", "category": "Бакалія", "quantity": max(1, days // 3), "price": "45.90", "total": f"{45.9 * max(1, days // 3):.2f}", "chain": "АТБ", "store": "АТБ №1", "distance_km": 0.5},
-            {"product_id": 4, "name": "Молоко 2.5% 900мл", "category": "Молочні", "quantity": days, "price": "38.50", "total": f"{38.5 * days:.2f}", "chain": "АТБ", "store": "АТБ №1", "distance_km": 0.5},
-            {"product_id": 5, "name": "Масло вершкове 72.5% 200г", "category": "Молочні", "quantity": max(1, days // 7), "price": "68.00", "total": f"{68.0 * max(1, days // 7):.2f}", "chain": "Сільпо", "store": "Сільпо №3", "distance_km": 1.2},
-            {"product_id": 6, "name": "Сир кисломолочний 5% 350г", "category": "Молочні", "quantity": max(1, days // 4), "price": "58.00", "total": f"{58.0 * max(1, days // 4):.2f}", "chain": "Сільпо", "store": "Сільпо №3", "distance_km": 1.2},
-            {"product_id": 7, "name": "Огірки тепличні 1кг", "category": "Овочі", "quantity": max(1, days // 3), "price": "85.00", "total": f"{85.0 * max(1, days // 3):.2f}", "chain": "Ашан", "store": "Ашан", "distance_km": 2.5},
-            {"product_id": 8, "name": "Яйця курячі 10шт С0", "category": "Молочні", "quantity": max(1, days // 3), "price": "52.00", "total": f"{52.0 * max(1, days // 3):.2f}", "chain": "АТБ", "store": "АТБ №1", "distance_km": 0.5},
+            {
+                "product_id": 1,
+                "name": "Хліб тостовий 500г",
+                "category": "Хлібобулочні",
+                "quantity": max(1, days // 2),
+                "price": "28.50",
+                "total": f"{28.5 * max(1, days // 2):.2f}",
+                "chain": "Сільпо",
+                "store": "Сільпо №3",
+                "distance_km": 1.2,
+            },
+            {
+                "product_id": 2,
+                "name": "Філе куряче охолоджене 1кг",
+                "category": "М'ясо",
+                "quantity": max(1, days // 3),
+                "price": "165.00",
+                "total": f"{165.0 * max(1, days // 3):.2f}",
+                "chain": "Ашан",
+                "store": "Ашан",
+                "distance_km": 2.5,
+            },
+            {
+                "product_id": 3,
+                "name": "Макарони з твердих сортів пшениці",
+                "category": "Бакалія",
+                "quantity": max(1, days // 3),
+                "price": "45.90",
+                "total": f"{45.9 * max(1, days // 3):.2f}",
+                "chain": "АТБ",
+                "store": "АТБ №1",
+                "distance_km": 0.5,
+            },
+            {
+                "product_id": 4,
+                "name": "Молоко 2.5% 900мл",
+                "category": "Молочні",
+                "quantity": days,
+                "price": "38.50",
+                "total": f"{38.5 * days:.2f}",
+                "chain": "АТБ",
+                "store": "АТБ №1",
+                "distance_km": 0.5,
+            },
+            {
+                "product_id": 5,
+                "name": "Масло вершкове 72.5% 200г",
+                "category": "Молочні",
+                "quantity": max(1, days // 7),
+                "price": "68.00",
+                "total": f"{68.0 * max(1, days // 7):.2f}",
+                "chain": "Сільпо",
+                "store": "Сільпо №3",
+                "distance_km": 1.2,
+            },
+            {
+                "product_id": 6,
+                "name": "Сир кисломолочний 5% 350г",
+                "category": "Молочні",
+                "quantity": max(1, days // 4),
+                "price": "58.00",
+                "total": f"{58.0 * max(1, days // 4):.2f}",
+                "chain": "Сільпо",
+                "store": "Сільпо №3",
+                "distance_km": 1.2,
+            },
+            {
+                "product_id": 7,
+                "name": "Огірки тепличні 1кг",
+                "category": "Овочі",
+                "quantity": max(1, days // 3),
+                "price": "85.00",
+                "total": f"{85.0 * max(1, days // 3):.2f}",
+                "chain": "Ашан",
+                "store": "Ашан",
+                "distance_km": 2.5,
+            },
+            {
+                "product_id": 8,
+                "name": "Яйця курячі 10шт С0",
+                "category": "Молочні",
+                "quantity": max(1, days // 3),
+                "price": "52.00",
+                "total": f"{52.0 * max(1, days // 3):.2f}",
+                "chain": "АТБ",
+                "store": "АТБ №1",
+                "distance_km": 0.5,
+            },
         ]
     else:
         # Premium
         items = [
-            {"product_id": 1, "name": "Хліб крафтовий з насінням", "category": "Хлібобулочні", "quantity": max(1, days // 2), "price": "55.00", "total": f"{55.0 * max(1, days // 2):.2f}", "chain": "Сільпо", "store": "Сільпо №3", "distance_km": 1.2},
-            {"product_id": 2, "name": "Сьомга слабосолона 200г", "category": "Риба", "quantity": max(1, days // 4), "price": "249.00", "total": f"{249.0 * max(1, days // 4):.2f}", "chain": "Сільпо", "store": "Сільпо №3", "distance_km": 1.2},
-            {"product_id": 3, "name": "Яловичина стейк тібоун 500г", "category": "М'ясо", "quantity": max(1, days // 5), "price": "315.00", "total": f"{315.0 * max(1, days // 5):.2f}", "chain": "Ашан", "store": "Ашан", "distance_km": 2.5},
-            {"product_id": 4, "name": "Сир брі Président 200г", "category": "Молочні", "quantity": max(1, days // 4), "price": "105.00", "total": f"{105.0 * max(1, days // 4):.2f}", "chain": "Сільпо", "store": "Сільпо №3", "distance_km": 1.2},
-            {"product_id": 5, "name": "Томати чері 250г", "category": "Овочі", "quantity": days // 2, "price": "75.00", "total": f"{75.0 * (days // 2):.2f}", "chain": "Сільпо", "store": "Сільпо №3", "distance_km": 1.2},
-            {"product_id": 6, "name": "Авокадо хасс", "category": "Фрукти", "quantity": days, "price": "45.00", "total": f"{45.0 * days:.2f}", "chain": "АТБ", "store": "АТБ №1", "distance_km": 0.5},
-            {"product_id": 7, "name": "Оливкова олія Extra Virgin 500мл", "category": "Бакалія", "quantity": 1, "price": "285.00", "total": "285.00", "chain": "Ашан", "store": "Ашан", "distance_km": 2.5},
-            {"product_id": 8, "name": "Кава в зернах Lavazza 1кг", "category": "Бакалія", "quantity": 1, "price": "560.00", "total": "560.00", "chain": "АТБ", "store": "АТБ №1", "distance_km": 0.5},
+            {
+                "product_id": 1,
+                "name": "Хліб крафтовий з насінням",
+                "category": "Хлібобулочні",
+                "quantity": max(1, days // 2),
+                "price": "55.00",
+                "total": f"{55.0 * max(1, days // 2):.2f}",
+                "chain": "Сільпо",
+                "store": "Сільпо №3",
+                "distance_km": 1.2,
+            },
+            {
+                "product_id": 2,
+                "name": "Сьомга слабосолона 200г",
+                "category": "Риба",
+                "quantity": max(1, days // 4),
+                "price": "249.00",
+                "total": f"{249.0 * max(1, days // 4):.2f}",
+                "chain": "Сільпо",
+                "store": "Сільпо №3",
+                "distance_km": 1.2,
+            },
+            {
+                "product_id": 3,
+                "name": "Яловичина стейк тібоун 500г",
+                "category": "М'ясо",
+                "quantity": max(1, days // 5),
+                "price": "315.00",
+                "total": f"{315.0 * max(1, days // 5):.2f}",
+                "chain": "Ашан",
+                "store": "Ашан",
+                "distance_km": 2.5,
+            },
+            {
+                "product_id": 4,
+                "name": "Сир брі Président 200г",
+                "category": "Молочні",
+                "quantity": max(1, days // 4),
+                "price": "105.00",
+                "total": f"{105.0 * max(1, days // 4):.2f}",
+                "chain": "Сільпо",
+                "store": "Сільпо №3",
+                "distance_km": 1.2,
+            },
+            {
+                "product_id": 5,
+                "name": "Томати чері 250г",
+                "category": "Овочі",
+                "quantity": days // 2,
+                "price": "75.00",
+                "total": f"{75.0 * (days // 2):.2f}",
+                "chain": "Сільпо",
+                "store": "Сільпо №3",
+                "distance_km": 1.2,
+            },
+            {
+                "product_id": 6,
+                "name": "Авокадо хасс",
+                "category": "Фрукти",
+                "quantity": days,
+                "price": "45.00",
+                "total": f"{45.0 * days:.2f}",
+                "chain": "АТБ",
+                "store": "АТБ №1",
+                "distance_km": 0.5,
+            },
+            {
+                "product_id": 7,
+                "name": "Оливкова олія Extra Virgin 500мл",
+                "category": "Бакалія",
+                "quantity": 1,
+                "price": "285.00",
+                "total": "285.00",
+                "chain": "Ашан",
+                "store": "Ашан",
+                "distance_km": 2.5,
+            },
+            {
+                "product_id": 8,
+                "name": "Кава в зернах Lavazza 1кг",
+                "category": "Бакалія",
+                "quantity": 1,
+                "price": "560.00",
+                "total": "560.00",
+                "chain": "АТБ",
+                "store": "АТБ №1",
+                "distance_km": 0.5,
+            },
         ]
-        
+
     current_total = sum(float(item["total"]) for item in items)
+    budget_decimal = Decimal(str(budget))
     if current_total > 0:
         scale = float(budget) / current_total
         if scale > 1.1:
             for it in items:
                 it["quantity"] = max(1, math.floor(it["quantity"] * scale))
                 it["total"] = f"{float(it['price']) * it['quantity']:.2f}"
-                
+
+    items = _cap_basket_to_budget(items, budget_decimal)
+
     total_cost = sum(float(item["total"]) for item in items)
-    
+
     return {
         "budget": budget,
         "days": days,
@@ -791,8 +1081,7 @@ def _build_demo_basket(budget, days):
         "total_cost": round(total_cost, 2),
         "daily_cost": round(total_cost / max(1, days), 2),
         "tips": [
-            "⚠️ База даних товарів ще не заповнена, тому ми показуємо реалістичний демо-список.",
-            "Запустіть скрапер магазинів для отримання актуальних цін вашого міста.",
-            f"Розрахований кошик оптимізовано під бюджет {budget} ₴ на {days} днів."
-        ]
+            "База даних товарів ще не заповнена. Запустіть скрапер магазинів для отримання актуальних цін вашого міста.",
+            f"Розрахований кошик оптимізовано під бюджет {budget} ₴ на {days} днів.",
+        ],
     }

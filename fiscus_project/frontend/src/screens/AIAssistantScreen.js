@@ -1,5 +1,5 @@
 /**
- * AI Assistant screen — powered by real Google Gemini API.
+ * AI Assistant screen — фінансовий помічник Fiscus.
  */
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
@@ -13,6 +13,7 @@ import {
     ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
+    Image,
 } from 'react-native';
 
 import { useCart } from '../context/CartContext';
@@ -30,10 +31,10 @@ async function callGemini(userMessage, cartItems, totalPrice) {
             message: userMessage,
             context: cartInfo,
         });
-        return data.reply || '🤖 Не вдалося отримати відповідь.';
+        return data.reply || 'Не вдалося отримати відповідь.';
     } catch (error) {
         if (error.response && error.response.status === 429) {
-            return "⏳ ШІ зараз перевантажений запитами (ліміт Google Gemini). Будь ласка, зробіть паузу на 30-40 секунд і спробуйте написати ще раз. Це допоможе уникнути блокування.";
+            return "ШІ зараз перевантажений запитами (ліміт Google Gemini). Будь ласка, зробіть паузу на 30-40 секунд і спробуйте написати ще раз. Це допоможе уникнути блокування.";
         }
         throw error;
     }
@@ -67,7 +68,7 @@ export default function AIAssistantScreen() {
 
     const saveProfile = async () => {
         try {
-            await apiClient.put('/auth/profile/', tempProfile);
+            await apiClient.updateProfile(tempProfile);
             setProfile(tempProfile);
             setShowSettings(false);
         } catch (e) {
@@ -77,8 +78,8 @@ export default function AIAssistantScreen() {
 
     useEffect(() => {
         const greeting = totalItems > 0
-            ? `Привіт! 👋 У вашому кошику ${totalItems} товарів на **${totalPrice.toFixed(2)} ₴**. Запитайте про ціни, знижки або оптимізацію!`
-            : 'Привіт! 👋 Я AI-помічник Fiscus на базі Google Gemini. Можу допомогти з аналізом цін, знижками та порадами для покупок в АТБ. Запитайте що завгодно!';
+            ? `Доброго дня! У вашому кошику ${totalItems} товарів на ${totalPrice.toFixed(2)} ₴. Запитайте про ціни, знижки або як оптимізувати список покупок.`
+            : 'Доброго дня! Я помічник Fiscus. Можу допомогти з аналізом цін, пошуком знижок та порадами для економних покупок. Запитайте що вас цікавить.';
         setMessages([{ role: 'ai', text: greeting, time: new Date() }]);
     }, []);
 
@@ -99,7 +100,7 @@ export default function AIAssistantScreen() {
             setMessages(prev => [...prev, { role: 'user', text, time: new Date() }]);
             setMessages(prev => [...prev, { 
                 role: 'ai', 
-                text: 'Перед тим, як я складу для вас кошик, будь ласка, заповніть інформацію про ваші алергії та вподобання у налаштуваннях (форма відкрита вище). Це допоможе мені підібрати ідеальні продукти 🥗', 
+                text: 'Щоб підібрати відповідні продукти, заповніть, будь ласка, інформацію про алергії та харчові обмеження у налаштуваннях (форма відкрита вище).', 
                 time: new Date() 
             }]);
             setShowSettings(true);
@@ -115,10 +116,10 @@ export default function AIAssistantScreen() {
             const aiText = await callGemini(text, items, totalPrice);
             setMessages(prev => [...prev, { role: 'ai', text: aiText, time: new Date() }]);
         } catch (e) {
-            console.error("Gemini Chat Error:", e);
+            console.error("Chat Error:", e);
             setMessages(prev => [...prev, {
                 role: 'ai',
-                text: `❌ Помилка: ${e.message}. Можливо, ШІ тимчасово недоступний.`,
+                text: `Виникла помилка: ${e.message}. Спробуйте повторити запит через кілька секунд.`,
                 time: new Date(),
             }]);
         }
@@ -140,7 +141,7 @@ export default function AIAssistantScreen() {
             setMessages(prev => [...prev, { role: 'user', text: query, time: new Date() }]);
             setMessages(prev => [...prev, { 
                 role: 'ai', 
-                text: 'Перед тим, як я складу для вас кошик, будь ласка, заповніть інформацію про ваші алергії та вподобання у налаштуваннях (форма відкрита вище). Це допоможе мені підібрати ідеальні продукти 🥗', 
+                text: 'Щоб підібрати відповідні продукти, заповніть інформацію про алергії та харчові обмеження у налаштуваннях (форма відкрита вище).', 
                 time: new Date() 
             }]);
             setShowSettings(true);
@@ -153,7 +154,7 @@ export default function AIAssistantScreen() {
             const aiText = await callGemini(query, items, totalPrice);
             setMessages(prev => [...prev, { role: 'ai', text: aiText, time: new Date() }]);
         } catch (e) {
-            setMessages(prev => [...prev, { role: 'ai', text: `❌ Помилка: ${e.message}`, time: new Date() }]);
+            setMessages(prev => [...prev, { role: 'ai', text: `Помилка: ${e.message}. Спробуйте ще раз.`, time: new Date() }]);
         }
         setThinking(false);
     }, [thinking, items, totalPrice]);
@@ -167,15 +168,15 @@ export default function AIAssistantScreen() {
             <View style={styles.header}>
                 <View style={styles.headerInner}>
                     <View style={styles.aiAvatar}>
-                        <Text style={styles.aiAvatarText}>AI</Text>
+                        <Text style={styles.aiAvatarText}>F</Text>
                     </View>
                     <View style={{ flex: 1 }}>
-                        <Text style={styles.headerTitle}>Fiscus AI</Text>
+                        <Text style={styles.headerTitle}>Помічник Fiscus</Text>
                         <View style={{flexDirection: 'row', alignItems: 'center', gap: 6}}>
-                            <Text style={styles.headerSub}>Google Gemini · Розумний помічник</Text>
+                            <Text style={styles.headerSub}>Фінансовий консультант</Text>
                             {user?.is_pro && (
                                 <View style={styles.proBadge}>
-                                    <Text style={styles.proText}>★ PRO</Text>
+                                    <Text style={styles.proText}>PRO</Text>
                                 </View>
                             )}
                         </View>
@@ -184,36 +185,49 @@ export default function AIAssistantScreen() {
                         style={styles.settingsBtn} 
                         onPress={() => setShowSettings(!showSettings)}
                     >
-                        <Text style={styles.settingsBtnText}>{showSettings ? '✕' : '⚙'}</Text>
+                        <Text style={styles.settingsBtnText}>{showSettings ? 'Закрити' : 'Налашт.'}</Text>
                     </TouchableOpacity>
                 </View>
             </View>
 
             {showSettings && (
                 <View style={styles.settingsPanel}>
-                    <Text style={styles.settingsTitle}>Налаштування ШІ ⚙️</Text>
-                    <TextInput
-                        style={styles.settingsInput}
-                        placeholder="Як до вас звертатися?"
-                        placeholderTextColor="rgba(255,255,255,0.4)"
-                        value={tempProfile.ai_custom_name}
-                        onChangeText={t => setTempProfile({...tempProfile, ai_custom_name: t})}
-                    />
-                    <TextInput
-                        style={styles.settingsInput}
-                        placeholder="На що у вас алергія (лактоза, горіхи тощо)?"
-                        placeholderTextColor="rgba(255,255,255,0.4)"
-                        value={tempProfile.ai_allergies}
-                        onChangeText={t => setTempProfile({...tempProfile, ai_allergies: t})}
-                    />
-                    <TextInput
-                        style={[styles.settingsInput, { height: 60 }]}
-                        placeholder="Що ви не їсте (наприклад: м'ясо) та інші побажання (веган, кето)"
-                        placeholderTextColor="rgba(255,255,255,0.4)"
-                        multiline
-                        value={tempProfile.ai_instructions}
-                        onChangeText={t => setTempProfile({...tempProfile, ai_instructions: t})}
-                    />
+                    <Text style={styles.settingsTitle}>Налаштування ШІ-помічника</Text>
+                    
+                    <View style={styles.settingsField}>
+                        <Text style={styles.settingsLabel}>Ваше ім'я</Text>
+                        <TextInput
+                            style={styles.settingsInput}
+                            placeholder="Наприклад: Олексій"
+                            placeholderTextColor={COLORS.textMuted}
+                            value={tempProfile.ai_custom_name}
+                            onChangeText={t => setTempProfile({...tempProfile, ai_custom_name: t})}
+                        />
+                    </View>
+
+                    <View style={styles.settingsField}>
+                        <Text style={styles.settingsLabel}>Алергії та непереносимості</Text>
+                        <TextInput
+                            style={styles.settingsInput}
+                            placeholder="Наприклад: лактоза, горіхи, глютен"
+                            placeholderTextColor={COLORS.textMuted}
+                            value={tempProfile.ai_allergies}
+                            onChangeText={t => setTempProfile({...tempProfile, ai_allergies: t})}
+                        />
+                    </View>
+
+                    <View style={styles.settingsField}>
+                        <Text style={styles.settingsLabel}>Дієтичні обмеження / побажання</Text>
+                        <TextInput
+                            style={[styles.settingsInput, styles.settingsInputMultiline]}
+                            placeholder="Наприклад: не їм м'ясо, веган, кето-дієта"
+                            placeholderTextColor={COLORS.textMuted}
+                            multiline
+                            value={tempProfile.ai_instructions}
+                            onChangeText={t => setTempProfile({...tempProfile, ai_instructions: t})}
+                        />
+                    </View>
+
                     <TouchableOpacity style={styles.saveSettingsBtn} onPress={saveProfile}>
                         <Text style={styles.saveSettingsText}>Зберегти налаштування</Text>
                     </TouchableOpacity>
@@ -231,16 +245,24 @@ export default function AIAssistantScreen() {
             >
                 {messages.map((msg, idx) => (
                     <View key={idx} style={[styles.msgRow, msg.role === 'user' && styles.msgRowUser]}>
+                        {msg.role === 'ai' && (
                             <View style={styles.msgAvatar}>
-                                <Text style={styles.msgAvatarText}>AI</Text>
+                                <Text style={styles.msgAvatarText}>F</Text>
                             </View>
+                        )}
                         <View style={[styles.msgBubble, msg.role === 'user' ? styles.msgUser : styles.msgAI]}>
                             <Text style={[styles.msgText, msg.role === 'user' && styles.msgTextUser]}>
                                 {msg.text}
                             </Text>
                             {msg.product && (
                                 <View style={styles.suggestionProduct}>
-                                    <Image source={{ uri: msg.product.image_url }} style={styles.suggestionImage} />
+                                    {msg.product.image_url ? (
+                                        <Image source={{ uri: msg.product.image_url }} style={styles.suggestionImage} resizeMode="cover" />
+                                    ) : (
+                                        <View style={[styles.suggestionImage, { backgroundColor: '#F0EDF6', justifyContent: 'center', alignItems: 'center' }]}>
+                                            <Text style={{ fontSize: 10, color: '#9B95AE' }}>фото</Text>
+                                        </View>
+                                    )}
                                     <View>
                                         <Text style={styles.suggestionName}>{msg.product.name}</Text>
                                         <Text style={styles.suggestionPrice}>{msg.product.price} ₴</Text>
@@ -254,12 +276,12 @@ export default function AIAssistantScreen() {
                 {thinking && (
                     <View style={styles.msgRow}>
                         <View style={styles.msgAvatar}>
-                            <Text style={styles.msgAvatarText}>AI</Text>
+                            <Text style={styles.msgAvatarText}>F</Text>
                         </View>
                         <View style={[styles.msgBubble, styles.msgAI]}>
                             <View style={styles.typingDots}>
                                 <ActivityIndicator size="small" color={COLORS.primary} />
-                                <Text style={[styles.msgText, { marginLeft: 8 }]}>Аналізую...</Text>
+                                <Text style={[styles.msgText, { marginLeft: 8 }]}>Опрацьовую запит...</Text>
                             </View>
                         </View>
                     </View>
@@ -329,34 +351,50 @@ const styles = StyleSheet.create({
     headerSub: { color: COLORS.textMuted, fontSize: 11 },
     proBadge: { backgroundColor: COLORS.primary, paddingHorizontal: 6, paddingVertical: 2, borderRadius: RADIUS.sm },
     proText: { color: '#fff', fontSize: 9, fontWeight: '800' },
-    settingsBtn: { marginLeft: 'auto', padding: 8 },
-    settingsBtnText: { fontSize: 20, color: COLORS.primary },
+    settingsBtn: { marginLeft: 'auto', paddingHorizontal: 10, paddingVertical: 6, borderRadius: RADIUS.sm, backgroundColor: COLORS.bgSecondary, borderWidth: 1, borderColor: COLORS.border },
+    settingsBtnText: { fontSize: 12, color: COLORS.primary, fontWeight: '600' },
     settingsPanel: {
         backgroundColor: COLORS.bgCard,
         padding: SPACING.md,
+        paddingTop: SPACING.sm,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.border,
         ...SHADOWS.card,
     },
-    settingsTitle: { ...FONTS.medium, fontSize: 14, marginBottom: SPACING.sm },
+    settingsTitle: { ...FONTS.bold, fontSize: 15, marginBottom: SPACING.md, color: COLORS.textPrimary },
+    settingsField: {
+        marginBottom: SPACING.sm,
+    },
+    settingsLabel: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: COLORS.textSecondary,
+        marginBottom: 4,
+        letterSpacing: 0.2,
+    },
     settingsInput: {
         backgroundColor: COLORS.bgInput,
         borderRadius: RADIUS.sm,
         padding: SPACING.sm,
-        marginBottom: SPACING.xs,
-        fontSize: 13,
+        paddingHorizontal: SPACING.md,
+        fontSize: 14,
         borderWidth: 1,
         borderColor: COLORS.border,
         color: COLORS.textPrimary,
     },
+    settingsInputMultiline: {
+        height: 64,
+        textAlignVertical: 'top',
+    },
     saveSettingsBtn: {
         backgroundColor: COLORS.primary,
-        borderRadius: RADIUS.full,
+        borderRadius: RADIUS.md,
         padding: SPACING.sm,
+        paddingVertical: SPACING.md - 2,
         alignItems: 'center',
-        marginTop: SPACING.xs,
+        marginTop: SPACING.sm,
     },
-    saveSettingsText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+    saveSettingsText: { color: '#fff', fontSize: 13, fontWeight: '700' },
 
     messages: { flex: 1 },
     messagesContent: { padding: SPACING.md, paddingBottom: SPACING.sm },
@@ -369,7 +407,7 @@ const styles = StyleSheet.create({
         justifyContent: 'center', alignItems: 'center',
         marginRight: SPACING.xs,
     },
-    msgAvatarText: { fontSize: 10, color: COLORS.primary, fontWeight: '700' },
+    msgAvatarText: { fontSize: 9, color: COLORS.primary, fontWeight: '700' },
     msgBubble: { maxWidth: '82%', borderRadius: RADIUS.md, padding: SPACING.sm },
     msgAI: {
         backgroundColor: COLORS.bgCard,

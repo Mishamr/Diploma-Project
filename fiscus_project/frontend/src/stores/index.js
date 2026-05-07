@@ -135,16 +135,15 @@ export const useSurvivalStore = create((set, get) => ({
 
     setChain: (chain) => set({ chain }),
 
-    fetchSurvival: async (budget, days, lat = null, lon = null) => {
+    fetchSurvival: async (budget, days, lat = null, lon = null, mealsPerDay = 3) => {
         set({ loading: true, error: null, basket: null, substitutions: null, substituteItemIndex: null });
         try {
             const { chain } = get();
-            const data = await apiClient.getSurvivalBasket(budget, days, lat, lon, chain);
+            const data = await apiClient.getSurvivalBasket(budget, days, lat, lon, chain, mealsPerDay);
             set({ basket: data, loading: false });
         } catch (error) {
             let msg = error.message || 'Помилка завантаження';
             if (msg.includes('quota') || msg.includes('429')) {
-                // If AI fails, the backend should have fallback, but if the whole request fails:
                 msg = "ШІ зараз відпочиває (ліміт запитів). Спробуйте через 20 секунд або змініть бюджет.";
             }
             set({ error: msg, loading: false });

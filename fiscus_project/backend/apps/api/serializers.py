@@ -66,6 +66,9 @@ class ProductSerializer(serializers.ModelSerializer):
     category_name = serializers.CharField(
         source="category.name", read_only=True, default=""
     )
+    category_slug = serializers.CharField(
+        source="category.slug", read_only=True, default=""
+    )
     latest_price = serializers.SerializerMethodField()
     latest_old_price = serializers.SerializerMethodField()
     image_url = serializers.CharField(source="best_image_url", read_only=True)
@@ -75,12 +78,14 @@ class ProductSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "name",
+            "normalized_name",
             "brand",
             "weight",
             "weight_kg",
             "unit",
             "category",
             "category_name",
+            "category_slug",
             "image_url",
             "latest_price",
             "latest_old_price",

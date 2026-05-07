@@ -7,7 +7,23 @@ import React from 'react';
 import Svg, { Path, Circle, Rect, Line, Polyline, Polygon } from 'react-native-svg';
 
 const icons = {
-    // Navigation / General
+    'heart': (color, size) => (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill={color} stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <Path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+        </Svg>
+    ),
+    'heart-outline': (color, size) => (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <Path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+        </Svg>
+    ),
+    'image-outline': (color, size) => (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <Rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+            <Circle cx="8.5" cy="8.5" r="1.5" />
+            <Polyline points="21 15 16 10 5 21" />
+        </Svg>
+    ),
     'home': (color, size) => (
         <Svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
             <Path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -335,6 +351,34 @@ const icons = {
         <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <Line x1="19" y1="12" x2="5" y2="12" />
             <Polyline points="12 19 5 12 12 5" />
+        </Svg>
+    ),
+    'pin-outline': (color, size) => (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <Path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+            <Circle cx="12" cy="9" r="2.5" />
+        </Svg>
+    ),
+    'close-outline': (color, size) => (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <Line x1="18" y1="6" x2="6" y2="18" />
+            <Line x1="6" y1="6" x2="18" y2="18" />
+        </Svg>
+    ),
+    'heart-dislike-outline': (color, size) => (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <Path d="M16.5 8.5c.44.44.77.96.97 1.5" />
+            <Path d="M8.96 4.44A5.5 5.5 0 0 1 12 3.67l1.06 1.06" />
+            <Path d="M20.84 4.61a5.5 5.5 0 0 1 .75 6.55" />
+            <Path d="M3 3l18 18" />
+            <Path d="M4.14 4.14A5.5 5.5 0 0 0 3.16 11.2L12 21.23l4-4" />
+        </Svg>
+    ),
+    'cart-outline': (color, size) => (
+        <Svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <Path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+            <Line x1="3" y1="6" x2="21" y2="6" />
+            <Path d="M16 10a4 4 0 0 1-8 0" />
         </Svg>
     ),
 };

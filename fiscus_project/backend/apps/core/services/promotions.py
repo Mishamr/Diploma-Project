@@ -16,9 +16,8 @@ def get_top_promotions(limit=20, chain_slug=None):
     Returns list of dicts with product, store, price, discount info.
     """
     filters = {
-        "is_promo": True,
         "old_price__isnull": False,
-        "recorded_at__gte": timezone.now() - timedelta(days=3),
+        "recorded_at__gte": timezone.now() - timedelta(days=30),
         "store_item__in_stock": True,
     }
 

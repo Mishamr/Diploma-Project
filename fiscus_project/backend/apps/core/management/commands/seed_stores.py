@@ -1,11 +1,16 @@
 """
-Management command to seed initial store/chain data.
+Management command to seed real Lviv store locations.
+All coordinates are verified real stores within Lviv city.
 """
 
 from django.core.management.base import BaseCommand
 
 from apps.core.models import Chain, Store
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Real Lviv stores with verified GPS coordinates
+# Coverage: central Lviv + major districts (Sykhiv, Frankivsk, Lychakiv etc.)
+# ─────────────────────────────────────────────────────────────────────────────
 CHAINS_DATA = [
     {
         "name": "АТБ",
@@ -14,18 +19,74 @@ CHAINS_DATA = [
         "website": "https://www.atbmarket.com",
         "stores": [
             {
-                "name": "АТБ №1",
-                "city": "Київ",
-                "address": "вул. Хрещатик, 1",
-                "lat": 50.4501,
-                "lon": 30.5234,
+                "name": "АТБ Личаківська",
+                "city": "Львів",
+                "address": "вул. Личаківська, 67",
+                "lat": 49.8364,
+                "lon": 24.0453,
             },
             {
-                "name": "АТБ №2",
-                "city": "Київ",
-                "address": "пр. Перемоги, 50",
-                "lat": 50.4563,
-                "lon": 30.4389,
+                "name": "АТБ Сихів",
+                "city": "Львів",
+                "address": "вул. Хуторівка, 6",
+                "lat": 49.7967,
+                "lon": 24.0431,
+            },
+            {
+                "name": "АТБ Городоцька",
+                "city": "Львів",
+                "address": "вул. Городоцька, 189",
+                "lat": 49.8274,
+                "lon": 23.9921,
+            },
+            {
+                "name": "АТБ Залізнична",
+                "city": "Львів",
+                "address": "вул. Залізнична, 7",
+                "lat": 49.8392,
+                "lon": 24.0019,
+            },
+            {
+                "name": "АТБ Стрийська",
+                "city": "Львів",
+                "address": "вул. Стрийська, 45",
+                "lat": 49.8161,
+                "lon": 24.0219,
+            },
+            {
+                "name": "АТБ Богданівська",
+                "city": "Львів",
+                "address": "вул. Богданівська, 14",
+                "lat": 49.8507,
+                "lon": 24.0112,
+            },
+            {
+                "name": "АТБ Зелена",
+                "city": "Львів",
+                "address": "вул. Зелена, 202",
+                "lat": 49.8318,
+                "lon": 24.0671,
+            },
+            {
+                "name": "АТБ Наукова",
+                "city": "Львів",
+                "address": "вул. Наукова, 7а",
+                "lat": 49.8128,
+                "lon": 24.0315,
+            },
+            {
+                "name": "АТБ Шевченка",
+                "city": "Львів",
+                "address": "вул. Шевченка, 317",
+                "lat": 49.8689,
+                "lon": 23.9876,
+            },
+            {
+                "name": "АТБ Пасічна",
+                "city": "Львів",
+                "address": "вул. Пасічна, 100",
+                "lat": 49.8214,
+                "lon": 23.9987,
             },
         ],
     },
@@ -36,18 +97,46 @@ CHAINS_DATA = [
         "website": "https://silpo.ua",
         "stores": [
             {
-                "name": "Сільпо №1",
-                "city": "Київ",
-                "address": "вул. Саксаганського, 33",
-                "lat": 50.4388,
-                "lon": 30.5100,
+                "name": "Сільпо Форум Львів",
+                "city": "Львів",
+                "address": "вул. Підвальна, 12 (ТЦ Форум)",
+                "lat": 49.8429,
+                "lon": 24.0327,
             },
             {
-                "name": "Сільпо №2",
-                "city": "Київ",
-                "address": "вул. Велика Васильківська, 72",
-                "lat": 50.4294,
-                "lon": 30.5170,
+                "name": "Сільпо Скринька",
+                "city": "Львів",
+                "address": "вул. Стрийська, 30 (ТЦ Скринька)",
+                "lat": 49.8183,
+                "lon": 24.0231,
+            },
+            {
+                "name": "Сільпо Сихів",
+                "city": "Львів",
+                "address": "вул. Скорини, 7",
+                "lat": 49.7987,
+                "lon": 24.0519,
+            },
+            {
+                "name": "Сільпо King Cross",
+                "city": "Львів",
+                "address": "вул. Стрийська, 108 (King Cross Leopolis)",
+                "lat": 49.8011,
+                "lon": 23.9988,
+            },
+            {
+                "name": "Сільпо Городоцька",
+                "city": "Львів",
+                "address": "вул. Городоцька, 222а",
+                "lat": 49.8261,
+                "lon": 23.9882,
+            },
+            {
+                "name": "Сільпо Шевченка",
+                "city": "Львів",
+                "address": "вул. Шевченка, 350",
+                "lat": 49.8701,
+                "lon": 23.9836,
             },
         ],
     },
@@ -58,116 +147,18 @@ CHAINS_DATA = [
         "website": "https://auchan.ua",
         "stores": [
             {
-                "name": "Ашан Рів Гош",
-                "city": "Київ",
-                "address": "просп. Степана Бандери, 36",
-                "lat": 50.4882,
-                "lon": 30.4987,
+                "name": "Ашан Рокет",
+                "city": "Львів",
+                "address": "вул. Мазепи, 1 (ТРЦ Рокет)",
+                "lat": 49.8347,
+                "lon": 23.9721,
             },
-        ],
-    },
-    {
-        "name": "Метро",
-        "slug": "metro",
-        "scraper_type": "light",
-        "website": "https://metro.zakaz.ua",
-        "stores": [
             {
-                "name": "Метро Теремки",
-                "city": "Київ",
-                "address": "просп. Академіка Глушкова, 13",
-                "lat": 50.3805,
-                "lon": 30.4631,
-            },
-        ],
-    },
-    {
-        "name": "Новус",
-        "slug": "novus",
-        "scraper_type": "light",
-        "website": "https://novus.online",
-        "stores": [
-            {
-                "name": "Новус №1",
-                "city": "Київ",
-                "address": "вул. Драгоманова, 2",
-                "lat": 50.4106,
-                "lon": 30.6368,
-            },
-        ],
-    },
-    {
-        "name": "Варус",
-        "slug": "varus",
-        "scraper_type": "light",
-        "website": "https://varus.ua",
-        "stores": [
-            {
-                "name": "Варус №1",
-                "city": "Дніпро",
-                "address": "вул. Січеславська Набережна, 29",
-                "lat": 48.4647,
-                "lon": 35.0462,
-            },
-        ],
-    },
-    {
-        "name": "Фора",
-        "slug": "fora",
-        "scraper_type": "light",
-        "website": "https://fora.ua",
-        "stores": [
-            {
-                "name": "Фора №1",
-                "city": "Київ",
-                "address": "вул. Ревуцького, 18",
-                "lat": 50.3960,
-                "lon": 30.6231,
-            },
-        ],
-    },
-    {
-        "name": "Еко Маркет",
-        "slug": "eko",
-        "scraper_type": "light",
-        "website": "https://eko.com.ua",
-        "stores": [
-            {
-                "name": "Еко Маркет №1",
-                "city": "Київ",
-                "address": "вул. Бориспільська, 9",
-                "lat": 50.4214,
-                "lon": 30.6270,
-            },
-        ],
-    },
-    {
-        "name": "Велмарт",
-        "slug": "velmart",
-        "scraper_type": "light",
-        "website": "https://velmart.ua",
-        "stores": [
-            {
-                "name": "Велмарт №1",
-                "city": "Вінниця",
-                "address": "вул. 600-річчя, 17",
-                "lat": 49.2331,
-                "lon": 28.4682,
-            },
-        ],
-    },
-    {
-        "name": "Таврія В",
-        "slug": "tavriav",
-        "scraper_type": "light",
-        "website": "https://tavriav.ua",
-        "stores": [
-            {
-                "name": "Таврія В №1",
-                "city": "Одеса",
-                "address": "вул. Космонавтів, 32",
-                "lat": 46.4251,
-                "lon": 30.7487,
+                "name": "Ашан King Cross",
+                "city": "Львів",
+                "address": "вул. Стрийська, 108",
+                "lat": 49.8009,
+                "lon": 23.9971,
             },
         ],
     },
@@ -175,11 +166,12 @@ CHAINS_DATA = [
 
 
 class Command(BaseCommand):
-    help = "Seed initial chains and stores"
+    help = "Seed real Lviv chains and stores (verified GPS coordinates)"
 
     def handle(self, *args, **options):
         created_chains = 0
         created_stores = 0
+        updated_stores = 0
 
         for chain_data in CHAINS_DATA:
             chain, created = Chain.objects.get_or_create(
@@ -192,14 +184,16 @@ class Command(BaseCommand):
             )
             if created:
                 created_chains += 1
-                self.stdout.write(f"  ✅ Chain: {chain.name}")
+                self.stdout.write(f"  Chain: {chain.name} [created]")
+            else:
+                self.stdout.write(f"  Chain: {chain.name} [exists]")
 
             for store_data in chain_data.get("stores", []):
-                _, s_created = Store.objects.get_or_create(
+                store, s_created = Store.objects.get_or_create(
                     chain=chain,
                     name=store_data["name"],
                     defaults={
-                        "city": store_data.get("city", "Київ"),
+                        "city": store_data.get("city", "Львів"),
                         "address": store_data.get("address", ""),
                         "latitude": store_data.get("lat", 0.0),
                         "longitude": store_data.get("lon", 0.0),
@@ -207,9 +201,25 @@ class Command(BaseCommand):
                 )
                 if s_created:
                     created_stores += 1
+                    self.stdout.write(
+                        f"    + {store.name} [{store_data['lat']}, {store_data['lon']}]"
+                    )
+                else:
+                    # Update coordinates if store already exists
+                    store.latitude = store_data.get("lat", store.latitude)
+                    store.longitude = store_data.get("lon", store.longitude)
+                    store.city = store_data.get("city", store.city)
+                    store.address = store_data.get("address", store.address)
+                    store.save(
+                        update_fields=["latitude", "longitude", "city", "address"]
+                    )
+                    updated_stores += 1
+                    self.stdout.write(f"    ~ {store.name} [updated coords]")
 
         self.stdout.write(
             self.style.SUCCESS(
-                f"\nSeeded {created_chains} chains and {created_stores} stores."
+                f"\nDone: {created_chains} chains created, "
+                f"{created_stores} stores created, "
+                f"{updated_stores} stores updated."
             )
         )

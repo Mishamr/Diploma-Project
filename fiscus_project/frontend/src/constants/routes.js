@@ -20,6 +20,10 @@ export const ROUTES = {
     AD_VIDEO: 'AdVideo',
     STORE: 'Store',
     PAYMENT: 'Payment',
+    SCRAPER: 'Scraper',
+    FAVORITES: 'Favorites',
+    CART_HISTORY: 'CartHistory',
+    CATEGORY_PRODUCT_PICKER: 'CategoryProductPicker',
 };
 
 export default ROUTES;

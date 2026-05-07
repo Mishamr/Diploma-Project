@@ -1,6 +1,6 @@
 /**
- * Fiscus: Smart Price — Minimalist Light Purple / Lavender Theme
- * Visible lavender backgrounds, violet accents.
+ * Fiscus: Smart Price — Minimalist Soft Light Theme
+ * Gentle, warm near-white tones with subtle purple accents.
  */
 
 export const COLORS = {
@@ -8,34 +8,34 @@ export const COLORS = {
     primary: '#7C3AED',
     primaryLight: '#A78BFA',
     primaryDark: '#5B21B6',
-    primarySoft: '#EDE9FE',
+    primarySoft: '#F0ECFA',
 
     // Accent (emerald for prices/savings)
     accent: '#059669',
     accentLight: '#10B981',
     accentDark: '#047857',
 
-    // Backgrounds — genuine light lavender (NOT white)
-    bgPrimary: '#EDE9FE',       // видима лаванда
-    bgSecondary: '#DDD6FE',     // темніша лаванда
-    bgCard: '#F5F3FF',          // ніжна лаванда для карток
-    bgCardSolid: '#F5F3FF',
-    bgCardLight: '#F7F5FF',
-    bgInput: '#F7F5FF',
+    // Backgrounds — м'які, теплі, без насиченої лаванди
+    bgPrimary: '#F8F7FC',       // дуже ніжний сіро-фіолетовий
+    bgSecondary: '#F0EDF6',     // ніжний лілово-сірий
+    bgCard: '#FFFFFF',          // чистий білий для карток
+    bgCardSolid: '#FFFFFF',
+    bgCardLight: '#FAFAFE',
+    bgInput: '#F4F3F8',
 
     // Glass (for legacy refs)
-    glass: 'rgba(255,255,255,0.6)',
-    glassBorder: 'rgba(124,58,237,0.15)',
-    glassLight: 'rgba(255,255,255,0.8)',
+    glass: 'rgba(255,255,255,0.75)',
+    glassBorder: 'rgba(124,58,237,0.10)',
+    glassLight: 'rgba(255,255,255,0.9)',
 
     // Surfaces
-    surface: '#E8E4FF',
-    surfaceHover: '#DDD6FE',
+    surface: '#F2F0F7',
+    surfaceHover: '#EBE8F2',
 
     // Text
     textPrimary: '#1E1B4B',
-    textSecondary: '#5B21B6',
-    textMuted: '#7C6FAA',
+    textSecondary: '#6B5CA5',
+    textMuted: '#9B95AE',
     textDark: '#4B5563',
 
     // Status
@@ -44,24 +44,24 @@ export const COLORS = {
     error: '#DC2626',
     info: '#2563EB',
 
-    // Borders
-    border: '#C4B5FD',
-    borderLight: '#DDD6FE',
+    // Borders — ніжні, не насичені
+    border: '#E8E5EF',
+    borderLight: '#F0EDF4',
 
     // Gradients (data viz only)
     gradientPurple: ['#7C3AED', '#5B21B6'],
     gradientGemini: ['#A78BFA', '#7C3AED'],
     gradientAccent: ['#059669', '#047857'],
-    gradientCard: ['#F5F3FF', '#EDE9FE'],
+    gradientCard: ['#FFFFFF', '#F8F7FC'],
     gradientPromo: ['#D97706', '#DC2626'],
     gradientAI: ['#2563EB', '#7C3AED'],
     gradientSavings: ['#059669', '#0891B2'],
 
     // Overlay
-    overlay: 'rgba(30, 27, 75, 0.4)',
+    overlay: 'rgba(30, 27, 75, 0.35)',
 
-    // Base — milky lavender, slightly purple-tinted white
-    white: '#F2EDFF',
+    // Base
+    white: '#FDFCFF',
     black: '#1E1B4B',
 };
 

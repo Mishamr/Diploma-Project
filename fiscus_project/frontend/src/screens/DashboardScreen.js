@@ -12,10 +12,11 @@ import { DashboardSkeleton } from '../components/SkeletonLoader';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { usePromotionStore } from '../stores';
-import apiClient from '../api/client'; // Added apiClient
+import apiClient from '../api/client';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import ROUTES from '../constants/routes';
 import GlassCard from '../components/GlassCard';
+import NearbyStoreBanner from '../components/NearbyStoreBanner';
 import { CHAINS, getChainColor } from '../constants/stores';
 import { useWindowDimensions } from 'react-native';
 
@@ -24,6 +25,7 @@ const QUICK_ACTIONS = [
     { label: 'Акції',      sub: 'Найкращі знижки',     route: ROUTES.PROMOTIONS,   accent: COLORS.warning },
     { label: 'Виживання',  sub: 'Бюджетний кошик',     route: ROUTES.SURVIVAL,     accent: COLORS.accent },
     { label: 'Карта',      sub: 'Магазини біля вас',   route: ROUTES.MAP,          accent: COLORS.info },
+    { label: '❤ Улюблені', sub: 'Збережені продукти',  route: ROUTES.FAVORITES,    accent: '#f43f5e' },
 ];
 
 export default function DashboardScreen({ navigation }) {
@@ -93,6 +95,9 @@ export default function DashboardScreen({ navigation }) {
                             </TouchableOpacity>
                         </View>
                     </GlassCard>
+
+                    {/* Nearest store — live geolocation */}
+                    <NearbyStoreBanner onPressMap={() => navigation.navigate(ROUTES.MAP)} />
 
                     {/* Cart banner */}
                     {totalItems > 0 && (

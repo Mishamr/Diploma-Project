@@ -110,3 +110,11 @@ backend/data/*.db-journal
 backend/data/jsonl/
 
 *.gemini/
+
+# Dev-only tunnel/proxy scripts
+node_proxy.js
+start_tunnel.js
+start_pinggy.js
+tunnel.bat
+fix_firewall.bat
+open_firewall.ps1

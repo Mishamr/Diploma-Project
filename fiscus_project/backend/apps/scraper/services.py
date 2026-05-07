@@ -25,14 +25,15 @@ _category_cache = {}
 def is_category_scraped(
     chain_slug: str, store_id: int, category_name: str, hours: int = 12
 ) -> bool:
-    """Check if a category was scraped recently for a given store, to allow resuming."""
+    """Check if a category was scraped recently for a given chain.
+    NOTE: store_id from the scraper is NOT the DB store PK — use chain_slug only.
+    """
     if not category_name:
         return False
 
     threshold = timezone.now() - timezone.timedelta(hours=hours)
 
     return StoreItem.objects.filter(
-        store_id=store_id,
         store__chain__slug=chain_slug,
         product__category__name=category_name,
         last_scraped__gte=threshold,
@@ -121,11 +122,10 @@ def ingest_scraped_data(scraped_items: list[dict], chain_slug: str, store_id: in
                 error_count += 1
                 continue
 
-            # Log matching for debugging
-            if product.name != item.title:
-                print(
-                    f"  [Matcher] {chain_slug}: Matched '{item.title[:30]}...' -> '{product.name[:30]}...'",
-                    flush=True,
+            # Log matching for debugging (only if names differ significantly)
+            if product.name != item.title and len(product.name) > 5:
+                logger.debug(
+                    f"  [Matcher] {chain_slug}: '{item.title[:40]}' -> '{product.name[:40]}'"
                 )
 
             # Update product image and category if changed

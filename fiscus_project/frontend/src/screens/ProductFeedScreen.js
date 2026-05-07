@@ -21,10 +21,11 @@ import { ProductFeedSkeleton } from '../components/SkeletonLoader';
 import { useProductStore, useCategoryStore } from '../stores';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { useFavorites } from '../context/FavoritesContext';
 import { useSettings } from '../context/SettingsContext';
 import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme';
 import GlassCard from '../components/GlassCard';
-
+import ProductDetailModal from '../components/ProductDetailModal';
 
 function useDebounce(value, delay) {
     const [debouncedValue, setDebouncedValue] = useState(value);
@@ -97,11 +98,13 @@ function ProductImage({ uri, style }) {
 export default function ProductFeedScreen({ route }) {
     const [search, setSearch] = useState('');
     const [selectedCategory, setSelectedCategory] = useState(null);
+    const [selectedProduct, setSelectedProduct] = useState(null);
     const debouncedSearch = useDebounce(search, 400);
 
     const { products, loading: productsLoading, loadingMore, fetchProducts, searchProducts, loadMoreProducts } = useProductStore();
     const { categories, fetchCategories } = useCategoryStore();
     const { addItem } = useCart();
+    const { isFavorite, toggleFavorite } = useFavorites();
     const { logout } = useAuth();
     const { viewMode, enabledChains } = useSettings();
 
@@ -120,55 +123,107 @@ export default function ProductFeedScreen({ route }) {
     }, [debouncedSearch, selectedCategory]);
 
     const handleAddToCart = useCallback((item) => {
-        const price = item.prices?.[0]?.price || 0;
         addItem({
             productId: item.id,
             name: item.name,
             price: item.latest_price || 0,
             image_url: item.image_url,
+            // Pass category info so Smart Substitute can find alternatives
+            category_slug: item.category_slug || item.category?.slug,
+            categorySlug: item.category_slug || item.category?.slug,
+            category_name: item.category_name || item.category?.name,
+            brand: item.brand,
         });
     }, [addItem]);
 
+    const handleToggleFavorite = useCallback((item) => {
+        toggleFavorite({
+            id: item.id,
+            name: item.name,
+            latest_price: item.latest_price,
+            price: item.latest_price,
+            image_url: item.image_url,
+            brand: item.brand,
+            category_slug: item.category_slug || item.category?.slug,
+            category_name: item.category_name || item.category?.name,
+        });
+    }, [toggleFavorite]);
 
-    const renderProduct = useCallback(({ item }) => (
-        <GlassCard style={viewMode === 'grid' ? styles.productCardGrid : styles.productCardList}>
-            <ProductImage 
-                uri={item.image_url}
-                style={viewMode === 'grid' ? styles.productImageGrid : styles.productImage}
-            />
 
-            <View style={viewMode === 'grid' ? styles.productInfoGrid : styles.productInfo}>
-                <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
-                {item.brand ? <Text style={styles.productBrand}>{item.brand}</Text> : null}
-                {item.weight ? <Text style={styles.productWeight}>{item.weight}</Text> : null}
-                {item.category_name ? <Text style={styles.categoryLabel}>{item.category_name}</Text> : null}
+    const renderProduct = useCallback(({ item }) => {
+        const fav = isFavorite(item.id);
+        return (
+        <TouchableOpacity activeOpacity={0.8} onPress={() => setSelectedProduct(item)} style={viewMode === 'grid' ? { flex: 1, margin: SPACING.xs } : {}}>
+            <GlassCard style={viewMode === 'grid' ? [styles.productCardGrid, { margin: 0 }] : styles.productCardList}>
+                <ProductImage 
+                    uri={item.image_url}
+                    style={viewMode === 'grid' ? styles.productImageGrid : styles.productImage}
+                />
 
-                <View style={styles.priceRow}>
-                    {item.latest_price ? (
-                        <>
-                            <Text style={styles.priceRange}>
-                                {Number(item.latest_price).toFixed(2)} ₴
-                            </Text>
-                            {item.latest_old_price != null && item.latest_old_price > item.latest_price && (
-                                <Text style={styles.oldPrice}>
-                                    {Number(item.latest_old_price).toFixed(2)} ₴
+                <View style={viewMode === 'grid' ? styles.productInfoGrid : styles.productInfo}>
+                    <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
+                    {item.brand ? <Text style={styles.productBrand}>{item.brand}</Text> : null}
+                    {item.weight ? <Text style={styles.productWeight}>{item.weight}</Text> : null}
+                    {item.category_name ? <Text style={styles.categoryLabel}>{item.category_name}</Text> : null}
+
+                    <View style={styles.priceRow}>
+                        {item.latest_price ? (
+                            <>
+                                <Text style={styles.priceRange}>
+                                    {Number(item.latest_price).toFixed(2)} ₴
                                 </Text>
-                            )}
-                        </>
-                    ) : (
-                        <Text style={styles.noPrice}>Ціна недоступна</Text>
+                                {item.latest_old_price != null && item.latest_old_price > item.latest_price && (
+                                    <Text style={styles.oldPrice}>
+                                        {Number(item.latest_old_price).toFixed(2)} ₴
+                                    </Text>
+                                )}
+                            </>
+                        ) : (
+                            <Text style={styles.noPrice}>Ціна недоступна</Text>
+                        )}
+                    </View>
+                    {viewMode === 'grid' && (
+                        <View style={styles.addToCartGrid}>
+                            <AddButton onPress={() => handleAddToCart(item)} />
+                        </View>
                     )}
                 </View>
-                {viewMode === 'grid' && (
-                    <View style={styles.addToCartGrid}>
+
+                {/* Favorite + Add buttons for list mode */}
+                {viewMode !== 'grid' && (
+                    <View style={styles.rightBtns}>
+                        <TouchableOpacity
+                            style={styles.favBtn}
+                            onPress={() => handleToggleFavorite(item)}
+                            hitSlop={8}
+                        >
+                            <Icon
+                                name={fav ? 'heart' : 'heart-outline'}
+                                size={20}
+                                color={fav ? COLORS.error : COLORS.textMuted}
+                            />
+                        </TouchableOpacity>
                         <AddButton onPress={() => handleAddToCart(item)} />
                     </View>
                 )}
-            </View>
-
-            {viewMode !== 'grid' && <AddButton onPress={() => handleAddToCart(item)} />}
-        </GlassCard>
-    ), [handleAddToCart, viewMode]);
+                {/* Fav for grid */}
+                {viewMode === 'grid' && (
+                    <TouchableOpacity
+                        style={styles.favBtnGrid}
+                        onPress={() => handleToggleFavorite(item)}
+                        hitSlop={8}
+                    >
+                        <Icon
+                            name={fav ? 'heart' : 'heart-outline'}
+                            size={16}
+                            color={fav ? COLORS.error : COLORS.textMuted}
+                        />
+                    </TouchableOpacity>
+                )}
+            </GlassCard>
+        </TouchableOpacity>
+        );
+    }, [handleAddToCart, handleToggleFavorite, isFavorite, viewMode]);
 
     // Build category list from API
     const allCategories = [{ slug: null, name: 'Усі' }, ...(categories || [])];
@@ -310,6 +365,18 @@ export default function ProductFeedScreen({ route }) {
                     }
                 />
             )}
+
+            <ProductDetailModal
+                visible={!!selectedProduct}
+                product={selectedProduct}
+                onClose={() => setSelectedProduct(null)}
+                onAdd={() => {
+                    handleAddToCart(selectedProduct);
+                    setSelectedProduct(null);
+                }}
+                isFavorite={selectedProduct ? isFavorite(selectedProduct.id) : false}
+                onToggleFavorite={() => handleToggleFavorite(selectedProduct)}
+            />
         </View>
     );
 }
@@ -516,6 +583,28 @@ const styles = StyleSheet.create({
         position: 'absolute',
         bottom: 0,
         right: -8,
+    },
+    rightBtns: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 2,
+    },
+    favBtn: {
+        width: 32,
+        height: 32,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    favBtnGrid: {
+        position: 'absolute',
+        top: 6,
+        right: 6,
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        backgroundColor: 'rgba(255,255,255,0.85)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     emptyState: {
         alignItems: 'center',

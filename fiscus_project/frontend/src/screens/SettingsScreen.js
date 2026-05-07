@@ -1,5 +1,5 @@
 /**
- * Settings screen — minimalist light-purple theme. No gradients/icons.
+ * Settings screen — minimalist soft-light theme with functional settings.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -21,6 +21,7 @@ import { COLORS, FONTS, SPACING, RADIUS } from '../constants/theme';
 import GlassCard from '../components/GlassCard';
 import { CHAINS } from '../constants/stores';
 import apiClient from '../api/client';
+import ROUTES from '../constants/routes';
 
 /* ─── Avatar ─── */
 const UserAvatar = ({ username, size = 80 }) => {
@@ -60,9 +61,46 @@ const EditableField = ({ label, value, onChangeText, placeholder, editable = tru
     </View>
 );
 
+/* ─── Toggle Row ─── */
+const ToggleRow = ({ label, subtitle, value, onValueChange }) => (
+    <View style={styles.toggleRow}>
+        <View style={{ flex: 1 }}>
+            <Text style={styles.toggleLabel}>{label}</Text>
+            {subtitle && <Text style={styles.toggleSub}>{subtitle}</Text>}
+        </View>
+        <Switch
+            value={value}
+            onValueChange={onValueChange}
+            trackColor={{ false: COLORS.border, true: COLORS.primaryLight }}
+            thumbColor={value ? COLORS.primary : COLORS.textMuted}
+        />
+    </View>
+);
+
+/* ─── Selector Chips ─── */
+const ChipSelector = ({ options, selected, onSelect }) => (
+    <View style={styles.chipRow}>
+        {options.map(opt => (
+            <TouchableOpacity
+                key={opt.value}
+                style={[styles.chip, selected === opt.value && styles.chipActive]}
+                onPress={() => onSelect(opt.value)}
+            >
+                <Text style={[styles.chipText, selected === opt.value && styles.chipTextActive]}>
+                    {opt.label}
+                </Text>
+            </TouchableOpacity>
+        ))}
+    </View>
+);
+
+
 export default function SettingsScreen({ navigation }) {
     const { user, logout } = useAuth();
-    const { viewMode, budget, enabledChains, updateViewMode, updateBudget, toggleChain } = useSettings();
+    const {
+        viewMode, enabledChains, notifications,
+        updateViewMode, toggleChain, updateNotifications,
+    } = useSettings();
 
     const [username, setUsername] = useState(user?.username || '');
     const [email, setEmail] = useState(user?.email || '');
@@ -121,7 +159,7 @@ export default function SettingsScreen({ navigation }) {
                         <Text style={styles.backBtnText}>← Назад</Text>
                     </TouchableOpacity>
                     <View style={styles.headerProfile}>
-                        <UserAvatar username={username} size={72} />
+                        <UserAvatar username={username} size={64} />
                         <View style={{ marginLeft: SPACING.md }}>
                             <Text style={styles.headerTitle}>{username || 'Гість'}</Text>
                             <Text style={styles.headerSub}>{email || 'Налаштуйте профіль'}</Text>
@@ -164,38 +202,28 @@ export default function SettingsScreen({ navigation }) {
                                 style={[styles.toggleBtn, viewMode === 'list' && styles.toggleActive]}
                                 onPress={() => updateViewMode('list')}
                             >
-                                <Text style={[styles.toggleBtnText, viewMode === 'list' && styles.toggleBtnTextActive]}>☰ Список</Text>
+                                <Text style={[styles.toggleBtnText, viewMode === 'list' && styles.toggleBtnTextActive]}>Список</Text>
                             </TouchableOpacity>
                             <TouchableOpacity
                                 style={[styles.toggleBtn, viewMode === 'grid' && styles.toggleActive]}
                                 onPress={() => updateViewMode('grid')}
                             >
-                                <Text style={[styles.toggleBtnText, viewMode === 'grid' && styles.toggleBtnTextActive]}>⊞ Сітка</Text>
+                                <Text style={[styles.toggleBtnText, viewMode === 'grid' && styles.toggleBtnTextActive]}>Сітка</Text>
                             </TouchableOpacity>
                         </View>
                     </GlassCard>
                 </View>
 
-                {/* Budget */}
+                {/* Notifications */}
                 <View style={styles.section}>
-                    <Text style={styles.sectionTitle}>Місячний бюджет</Text>
-                    <GlassCard style={styles.optionRow}>
-                        <Text style={styles.optionLabel}>Бюджет</Text>
-                        <View style={styles.stepper}>
-                            <TouchableOpacity
-                                style={styles.stepBtn}
-                                onPress={() => updateBudget(Math.max(1000, parseInt(budget) - 500))}
-                            >
-                                <Text style={styles.stepBtnText}>−</Text>
-                            </TouchableOpacity>
-                            <Text style={styles.stepValue}>{budget} ₴</Text>
-                            <TouchableOpacity
-                                style={styles.stepBtn}
-                                onPress={() => updateBudget(parseInt(budget) + 500)}
-                            >
-                                <Text style={styles.stepBtnText}>+</Text>
-                            </TouchableOpacity>
-                        </View>
+                    <Text style={styles.sectionTitle}>Сповіщення</Text>
+                    <GlassCard>
+                        <ToggleRow
+                            label="Акції та знижки"
+                            subtitle="Повідомлення про нові акції в обраних мережах"
+                            value={notifications}
+                            onValueChange={updateNotifications}
+                        />
                     </GlassCard>
                 </View>
 
@@ -204,7 +232,7 @@ export default function SettingsScreen({ navigation }) {
                     <Text style={styles.sectionTitle}>Обрані мережі</Text>
                     {CHAINS.map(chain => (
                         <GlassCard key={chain.slug} style={styles.chainRow}>
-                            <Text style={styles.chainIcon}>{chain.icon}</Text>
+                            <View style={[styles.chainDot, { backgroundColor: chain.color }]} />
                             <Text style={styles.chainName}>{chain.name}</Text>
                             <Switch
                                 value={enabledChains[chain.slug]}
@@ -214,6 +242,18 @@ export default function SettingsScreen({ navigation }) {
                             />
                         </GlassCard>
                     ))}
+                </View>
+
+                {/* Admin: Scraper */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Адміністрування</Text>
+                    <TouchableOpacity
+                        style={styles.adminBtn}
+                        onPress={() => navigation.navigate(ROUTES.SCRAPER)}
+                    >
+                        <Text style={styles.adminBtnText}>Управління скреперами</Text>
+                        <Text style={styles.adminBtnSub}>Статус, запуск, логи парсингу</Text>
+                    </TouchableOpacity>
                 </View>
 
                 {/* Logout */}
@@ -229,7 +269,7 @@ export default function SettingsScreen({ navigation }) {
 
 const styles = StyleSheet.create({
     header: {
-        backgroundColor: COLORS.white,
+        backgroundColor: COLORS.bgCard,
         padding: SPACING.lg,
         paddingTop: SPACING.xxl,
         borderBottomWidth: 1,
@@ -239,7 +279,7 @@ const styles = StyleSheet.create({
     backBtnText: { fontSize: 14, fontWeight: '600', color: COLORS.primary },
     headerProfile: { flexDirection: 'row', alignItems: 'center' },
     headerTitle: { ...FONTS.title, fontSize: 20 },
-    headerSub: { color: COLORS.textSecondary, fontSize: 13, marginTop: 2 },
+    headerSub: { color: COLORS.textMuted, fontSize: 13, marginTop: 2 },
 
     section: { paddingHorizontal: SPACING.lg, marginTop: SPACING.lg },
     sectionTitle: { ...FONTS.sectionTitle, marginBottom: SPACING.sm },
@@ -247,7 +287,7 @@ const styles = StyleSheet.create({
     profileCard: { padding: SPACING.md },
     fieldWrapper: { paddingVertical: SPACING.sm },
     fieldDivider: { height: 1, backgroundColor: COLORS.border },
-    fieldLabel: { ...FONTS.caption, marginBottom: 4, letterSpacing: 0.3 },
+    fieldLabel: { fontSize: 12, fontWeight: '600', color: COLORS.textSecondary, marginBottom: 4, letterSpacing: 0.3 },
     fieldInput: {
         ...FONTS.medium,
         fontSize: 15,
@@ -255,7 +295,7 @@ const styles = StyleSheet.create({
         padding: 0,
         minHeight: 24,
     },
-    fieldValue: { ...FONTS.medium, fontSize: 15, color: COLORS.textSecondary },
+    fieldValue: { ...FONTS.medium, fontSize: 15, color: COLORS.textMuted },
 
     saveBtn: {
         marginTop: SPACING.sm,
@@ -288,8 +328,8 @@ const styles = StyleSheet.create({
 
     stepper: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
     stepBtn: {
-        width: 32,
-        height: 32,
+        width: 34,
+        height: 34,
         backgroundColor: COLORS.bgSecondary,
         borderRadius: RADIUS.sm,
         borderWidth: 1,
@@ -298,26 +338,74 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     stepBtnText: { fontSize: 18, color: COLORS.primary, fontWeight: '700', lineHeight: 22 },
-    stepValue: { ...FONTS.bold, fontSize: 16, minWidth: 70, textAlign: 'center' },
+    stepValue: { ...FONTS.bold, fontSize: 16, minWidth: 80, textAlign: 'center' },
 
+    /* Toggle rows */
+    toggleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    toggleLabel: { ...FONTS.medium, fontSize: 14 },
+    toggleSub: { fontSize: 12, color: COLORS.textMuted, marginTop: 2 },
+
+    /* Chip selector */
+    chipRow: {
+        flexDirection: 'row',
+        gap: SPACING.sm,
+        flexWrap: 'wrap',
+    },
+    chip: {
+        paddingHorizontal: SPACING.md,
+        paddingVertical: SPACING.sm,
+        borderRadius: RADIUS.full,
+        backgroundColor: COLORS.bgSecondary,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    chipActive: {
+        backgroundColor: COLORS.primary,
+        borderColor: COLORS.primary,
+    },
+    chipText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: COLORS.textMuted,
+    },
+    chipTextActive: {
+        color: '#fff',
+    },
+
+    /* Chain rows */
     chainRow: {
         flexDirection: 'row',
         alignItems: 'center',
         marginBottom: SPACING.sm,
     },
-    chainIcon: { fontSize: 20, marginRight: SPACING.md },
+    chainDot: { width: 10, height: 10, borderRadius: 5, marginRight: SPACING.md },
     chainName: { ...FONTS.medium, fontSize: 14, flex: 1 },
 
     logoutBtn: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: 'rgba(220,38,38,0.07)',
+        backgroundColor: 'rgba(220,38,38,0.06)',
         borderWidth: 1,
-        borderColor: 'rgba(220,38,38,0.15)',
+        borderColor: 'rgba(220,38,38,0.12)',
         borderRadius: RADIUS.md,
         padding: SPACING.md,
         marginBottom: SPACING.xxl,
     },
     logoutText: { color: COLORS.error, fontWeight: '600', fontSize: 15 },
+
+    adminBtn: {
+        backgroundColor: COLORS.bgSecondary,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        borderRadius: RADIUS.md,
+        paddingHorizontal: SPACING.md,
+        paddingVertical: SPACING.md,
+    },
+    adminBtnText: { ...FONTS.medium, fontSize: 14, color: COLORS.primary },
+    adminBtnSub: { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
 });

@@ -1,8 +1,8 @@
 /**
- * Shopping List / Calculator screen — minimalist light-purple theme.
+ * Shopping List / Calculator screen — з розумною заміною, улюбленими та історією кошиків.
  */
 
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import {
     View,
     Text,
@@ -11,18 +11,93 @@ import {
     StyleSheet,
     Alert,
     Image,
+    Animated,
 } from 'react-native';
 import { useCart } from '../context/CartContext';
 import { COLORS, FONTS, SPACING, RADIUS, SHADOWS } from '../constants/theme';
 import GlassCard from '../components/GlassCard';
+import Icon from '../components/Icon';
+import SmartSubstituteModal from '../components/SmartSubstituteModal';
 import ROUTES from '../constants/routes';
 
 export default function ShoppingListScreen({ navigation }) {
-    const { items, totalItems, totalPrice, removeItem, updateQuantity, clearCart } = useCart();
+    const {
+        items, totalItems, totalPrice,
+        removeItem, updateQuantity, clearCart,
+        replaceItem, saveCartToHistory,
+    } = useCart();
 
     const originalTotal = items.reduce((sum, i) => sum + (i.price || 0) * 1.15 * i.quantity, 0);
     const savings = originalTotal - totalPrice;
 
+    // ── Smart Substitute state ────────────────────────────────────────────────
+    const [substituteVisible, setSubstituteVisible] = useState(false);
+    const [substituteQueue, setSubstituteQueue] = useState([]); // items to process
+    const [currentSubstIdx, setCurrentSubstIdx] = useState(0);
+
+    const currentCartItem = substituteQueue[currentSubstIdx] || null;
+
+    const handleStartSmartReplace = () => {
+        if (items.length === 0) return;
+        const queue = items.filter((i) => !!i.category_slug || !!i.categorySlug);
+        if (queue.length === 0) {
+            Alert.alert(
+                'Не вдається знайти категорії',
+                'Товари в кошику не мають інформації про категорію. Спробуйте додати товари через каталог.'
+            );
+            return;
+        }
+        setSubstituteQueue(queue);
+        setCurrentSubstIdx(0);
+        setSubstituteVisible(true);
+    };
+
+    const advanceOrClose = () => {
+        const next = currentSubstIdx + 1;
+        if (next < substituteQueue.length) {
+            setCurrentSubstIdx(next);
+        } else {
+            setSubstituteVisible(false);
+            setSubstituteQueue([]);
+            setCurrentSubstIdx(0);
+        }
+    };
+
+    const handleReplace = (newProduct) => {
+        if (currentCartItem) {
+            replaceItem(currentCartItem.productId, newProduct);
+        }
+        advanceOrClose();
+    };
+
+    const handleChooseOther = ({ alternatives, oldProductId, oldProductName, currentPrice }) => {
+        setSubstituteVisible(false);
+        navigation.navigate(ROUTES.CATEGORY_PRODUCT_PICKER, {
+            // Pass preloaded alternatives list — no extra API call needed
+            preloadedProducts: alternatives,
+            oldProductId,
+            oldProductName,
+            currentPrice,
+            // Title for header
+            categoryName: `Замінники для «${oldProductName}»`,
+        });
+    };
+
+    // ── Save cart ─────────────────────────────────────────────────────────────
+    const handleSaveCart = async () => {
+        const ok = await saveCartToHistory();
+        if (ok) {
+            Alert.alert('Збережено', 'Кошик збережено в історію!', [
+                { text: 'OK' },
+                {
+                    text: 'Переглянути',
+                    onPress: () => navigation.navigate(ROUTES.CART_HISTORY),
+                },
+            ]);
+        }
+    };
+
+    // ── Clear ─────────────────────────────────────────────────────────────────
     const handleClear = () => {
         Alert.alert('Очистити кошик?', 'Всі товари будуть видалені.', [
             { text: 'Скасувати', style: 'cancel' },
@@ -84,11 +159,23 @@ export default function ShoppingListScreen({ navigation }) {
                     <Text style={styles.summaryLabel}>Калькулятор кошика</Text>
                     <Text style={styles.summaryCount}>{totalItems} товарів</Text>
                 </View>
-                {totalItems > 0 && (
-                    <TouchableOpacity onPress={handleClear} style={styles.clearBtn}>
-                        <Text style={styles.clearText}>Очистити</Text>
-                    </TouchableOpacity>
-                )}
+                <View style={styles.headerActions}>
+                    {totalItems > 0 && (
+                        <>
+                            {/* History */}
+                            <TouchableOpacity
+                                style={styles.iconBtn}
+                                onPress={() => navigation?.navigate(ROUTES.CART_HISTORY)}
+                            >
+                                <Icon name="time-outline" size={18} color={COLORS.primary} />
+                            </TouchableOpacity>
+                            {/* Clear */}
+                            <TouchableOpacity onPress={handleClear} style={styles.clearBtn}>
+                                <Text style={styles.clearText}>Очистити</Text>
+                            </TouchableOpacity>
+                        </>
+                    )}
+                </View>
             </View>
 
             {/* Items */}
@@ -107,7 +194,7 @@ export default function ShoppingListScreen({ navigation }) {
                 }
             />
 
-            {/* Bottom totals bar */}
+            {/* Bottom bar */}
             {totalItems > 0 && (
                 <View style={styles.bottomBar}>
                     {savings > 0 && (
@@ -127,8 +214,45 @@ export default function ShoppingListScreen({ navigation }) {
                             <Text style={styles.compareBtnText}>✦ Порівняти</Text>
                         </TouchableOpacity>
                     </View>
+
+                    {/* Action row: Smart replace + Save */}
+                    <View style={styles.actionRow}>
+                        {/* Smart substitute button — ⇄ icon */}
+                        <TouchableOpacity
+                            style={styles.smartBtn}
+                            onPress={handleStartSmartReplace}
+                            activeOpacity={0.85}
+                        >
+                            <Icon name="swap-horizontal" size={17} color={COLORS.primary} />
+                            <Text style={styles.smartBtnText}>Розумна заміна</Text>
+                        </TouchableOpacity>
+
+                        {/* Save to history */}
+                        <TouchableOpacity
+                            style={styles.saveBtn}
+                            onPress={handleSaveCart}
+                            activeOpacity={0.85}
+                        >
+                            <Icon name="bookmark-outline" size={17} color={COLORS.primary} />
+                            <Text style={styles.saveBtnText}>Зберегти</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             )}
+
+            {/* Smart Substitute Modal */}
+            <SmartSubstituteModal
+                visible={substituteVisible}
+                cartItem={currentCartItem}
+                onReplace={handleReplace}
+                onChooseOther={handleChooseOther}
+                onSkip={advanceOrClose}
+                onClose={() => {
+                    setSubstituteVisible(false);
+                    setSubstituteQueue([]);
+                    setCurrentSubstIdx(0);
+                }}
+            />
         </View>
     );
 }
@@ -148,6 +272,17 @@ const styles = StyleSheet.create({
     },
     summaryLabel: { ...FONTS.bold, fontSize: 17 },
     summaryCount: { ...FONTS.caption, marginTop: 2 },
+    headerActions: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
+    iconBtn: {
+        width: 36,
+        height: 36,
+        borderRadius: RADIUS.sm,
+        backgroundColor: 'rgba(139,92,246,0.08)',
+        borderWidth: 1,
+        borderColor: 'rgba(139,92,246,0.15)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
     clearBtn: {
         backgroundColor: 'rgba(220,38,38,0.08)',
         borderWidth: 1,
@@ -161,7 +296,7 @@ const styles = StyleSheet.create({
     listContent: {
         paddingHorizontal: SPACING.lg,
         paddingTop: SPACING.sm,
-        paddingBottom: SPACING.xxl * 3,
+        paddingBottom: SPACING.xxl * 5,
     },
     itemCard: {
         flexDirection: 'row',
@@ -238,4 +373,36 @@ const styles = StyleSheet.create({
         ...SHADOWS.button,
     },
     compareBtnText: { color: COLORS.white, fontWeight: '700', fontSize: 15 },
+
+    actionRow: {
+        flexDirection: 'row',
+        gap: SPACING.sm,
+        marginTop: SPACING.sm,
+    },
+    smartBtn: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: SPACING.xs,
+        borderWidth: 1.5,
+        borderColor: COLORS.primary,
+        borderRadius: RADIUS.md,
+        paddingVertical: SPACING.sm,
+        backgroundColor: 'rgba(139,92,246,0.06)',
+    },
+    smartBtnText: { color: COLORS.primary, fontWeight: '700', fontSize: 13 },
+    saveBtn: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: SPACING.xs,
+        borderWidth: 1.5,
+        borderColor: COLORS.primary,
+        borderRadius: RADIUS.md,
+        paddingVertical: SPACING.sm,
+        backgroundColor: 'rgba(139,92,246,0.06)',
+    },
+    saveBtnText: { color: COLORS.primary, fontWeight: '700', fontSize: 13 },
 });

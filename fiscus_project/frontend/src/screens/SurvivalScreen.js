@@ -76,7 +76,7 @@ const ProductImage = ({ uri, style }) => {
     }
     return (
         <View style={[style, { backgroundColor: COLORS.surface, justifyContent: 'center', alignItems: 'center' }]}>
-            <Text style={{ fontSize: 18 }}>🥦</Text>
+            <View style={{ width: 20, height: 20, borderRadius: 4, backgroundColor: COLORS.border }} />
         </View>
     );
 };
@@ -100,7 +100,7 @@ const SubstitutionModal = ({
                 <View style={s.modalHeader}>
                     <Text style={s.modalTitle}>Альтернативи</Text>
                     <TouchableOpacity onPress={onClose} style={s.modalClose}>
-                        <Text style={{ fontSize: 20, color: COLORS.textSecondary }}>✕</Text>
+                        <Text style={{ fontSize: 14, color: COLORS.textSecondary, fontWeight: '600' }}>Закрити</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -115,7 +115,7 @@ const SubstitutionModal = ({
                 {loading ? (
                     <View style={s.modalLoading}>
                         <ActivityIndicator size="large" color={COLORS.accent} />
-                        <Text style={s.modalLoadingText}>AI шукає альтернативи...</Text>
+                        <Text style={s.modalLoadingText}>Шукаємо альтернативи...</Text>
                     </View>
                 ) : data?.substitutions?.length > 0 ? (
                     <ScrollView style={{ maxHeight: 300 }}>
@@ -126,15 +126,13 @@ const SubstitutionModal = ({
                                 onPress={() => onSelect(sub)}
                                 activeOpacity={0.7}
                             >
-                                <View style={s.subIcon}>
-                                    <Text style={{ fontSize: 16 }}>⇄</Text>
-                                </View>
+                                <View style={s.subIconDot} />
                                 <View style={{ flex: 1 }}>
                                     <Text style={s.subName}>{sub.name}</Text>
                                     <Text style={s.subChain}>
                                         {sub.chain}
-                                        {sub.distance_km ? ` • ${sub.distance_km} км` : ''}
-                                        {sub.is_promo && ' Акція'}
+                                        {sub.distance_km ? ` · ${sub.distance_km} км` : ''}
+                                        {sub.is_promo && ' — акція'}
                                     </Text>
                                     {sub.reason ? (
                                         <Text style={s.subReason}>{sub.reason}</Text>
@@ -151,7 +149,6 @@ const SubstitutionModal = ({
                     </ScrollView>
                 ) : (
                     <View style={s.modalLoading}>
-                        <Text style={{ fontSize: 36 }}>🔍</Text>
                         <Text style={s.modalLoadingText}>Альтернатив не знайдено</Text>
                     </View>
                 )}
@@ -199,6 +196,7 @@ export default function SurvivalScreen({ navigation }) {
 
     const [budget, setBudget] = useState(5000);
     const [days, setDays] = useState(7);
+    const [mealsPerDay, setMealsPerDay] = useState(3);
     const [error, setError] = useState(null);
     const [userLat, setUserLat] = useState(null);
     const [userLon, setUserLon] = useState(null);
@@ -218,18 +216,18 @@ export default function SurvivalScreen({ navigation }) {
         return { lat: null, lon: null };
     }, []);
 
-    const doFetch = useCallback(async (b, d) => {
+    const doFetch = useCallback(async (b, d, m) => {
         setError(null);
         try {
             const { lat, lon } = await getLocation();
-            await fetchSurvival(b, d, lat, lon);
+            await fetchSurvival(b, d, lat, lon, m);
         } catch (e) {
             setError(e.message || 'Помилка завантаження');
         }
     }, [fetchSurvival, getLocation]);
 
     useEffect(() => {
-        doFetch(budget, days);
+        doFetch(budget, days, mealsPerDay);
     }, []);
 
     const handleSubstitute = (itemIndex) => {
@@ -314,21 +312,21 @@ export default function SurvivalScreen({ navigation }) {
             >
             <View style={s.header}>
                 <View style={s.headerTopRow}>
-                    <Text style={s.headerEmoji}>🛡️</Text>
+                    <View style={s.headerAccentBar} />
                     <View style={s.userStats}>
                         {user?.is_pro ? (
                             <View style={s.proBadge}>
-                                <Text style={s.proText}>★ PRO</Text>
+                                <Text style={s.proText}>PRO</Text>
                             </View>
                         ) : (
                             <TouchableOpacity style={s.ticketBadge} onPress={() => navigation.navigate(ROUTES.STORE)}>
-                                <Text style={s.ticketText}>🎫 {user?.tickets || 0}</Text>
+                                <Text style={s.ticketText}>Тікетів: {user?.tickets || 0}</Text>
                             </TouchableOpacity>
                         )}
                     </View>
                 </View>
                 <Text style={s.headerTitle}>Режим виживання</Text>
-                <Text style={s.headerSub}>AI-оптимізований кошик покупок</Text>
+                <Text style={s.headerSub}>Оптимізований кошик покупок</Text>
             </View>
 
             {/* Controls */}
@@ -374,6 +372,19 @@ export default function SurvivalScreen({ navigation }) {
                         </TouchableOpacity>
                     </View>
                 </View>
+
+                <View style={s.controlGroup}>
+                    <Text style={s.controlLabel}>Прийоми їжі/день</Text>
+                    <View style={s.stepper}>
+                        <TouchableOpacity onPress={() => setMealsPerDay(Math.max(1, mealsPerDay - 1))} style={s.stepBtn}>
+                            <Text style={s.stepBtnText}>−</Text>
+                        </TouchableOpacity>
+                        <Text style={s.stepValue}>{mealsPerDay}</Text>
+                        <TouchableOpacity onPress={() => setMealsPerDay(Math.min(6, mealsPerDay + 1))} style={s.stepBtn}>
+                            <Text style={s.stepBtnText}>+</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
             </View>
 
             {/* Chain Selection */}
@@ -410,10 +421,10 @@ export default function SurvivalScreen({ navigation }) {
             {/* Generate button */}
             <TouchableOpacity
                 style={s.generateBtn}
-                onPress={() => doFetch(budget, days)}
+                onPress={() => doFetch(budget, days, mealsPerDay)}
                 activeOpacity={0.8}
             >
-                <Text style={s.generateText}>✦ Згенерувати AI кошик</Text>
+                <Text style={s.generateText}>Сформувати кошик</Text>
             </TouchableOpacity>
 
             {/* Content */}
@@ -421,40 +432,33 @@ export default function SurvivalScreen({ navigation }) {
                 <SurvivalSkeleton />
             ) : error === 'Недостатньо тікетів' ? (
                 <View style={s.errorContainer}>
-                    <Text style={{ fontSize: 56 }}>🎫</Text>
-                    <Text style={[s.errorText, { color: COLORS.textPrimary, ...FONTS.title, marginTop: 16 }]}>Закінчилися тікети!</Text>
-                    <Text style={[s.errorText, { color: COLORS.textSecondary }]}>Для генерації AI-кошика потрібен 1 тікет.</Text>
+                    <Text style={[s.errorText, { color: COLORS.textPrimary, ...FONTS.title, marginTop: 16 }]}>Закінчилися тікети</Text>
+                    <Text style={[s.errorText, { color: COLORS.textSecondary }]}>Для формування кошика потрібен 1 тікет.</Text>
                     
-                    <TouchableOpacity style={[s.retryBtn, { backgroundColor: COLORS.accent, marginTop: 24, width: '100%' }]} onPress={() => navigation.navigate(ROUTES.MINI_GAME)}>
-                        <Text style={[s.retryText, { color: '#fff' }]}>Грати в Міні-Гру (Безкоштовно)</Text>
-                    </TouchableOpacity>
-
                     <TouchableOpacity style={[s.retryBtn, { backgroundColor: COLORS.surface, marginTop: 12, width: '100%' }]} onPress={() => navigation.navigate(ROUTES.STORE)}>
-                        <Text style={[s.retryText, { color: COLORS.primary }]}>Магазин Тікетів / PRO</Text>
+                        <Text style={[s.retryText, { color: COLORS.primary }]}>Магазин тікетів / PRO</Text>
                     </TouchableOpacity>
                 </View>
             ) : error ? (
                 <View style={s.errorContainer}>
-                    <Text style={{ fontSize: 40 }}>⚠️</Text>
                     <Text style={s.errorText}>{error}</Text>
-                    <TouchableOpacity style={s.retryBtn} onPress={() => doFetch(budget, days)}>
+                    <TouchableOpacity style={s.retryBtn} onPress={() => doFetch(budget, days, mealsPerDay)}>
                         <Text style={s.retryText}>Спробувати знову</Text>
                     </TouchableOpacity>
                 </View>
             ) : basket ? (
                 <>
-                    {/* AI badge */}
+                    {/* Status badge */}
                     {basket.ai_generated && (
                         <View style={s.aiBadge}>
-                            <Text style={{ fontSize: 14 }}>✦</Text>
-                            <Text style={s.aiBadgeText}>Список згенеровано AI</Text>
+                            <Text style={s.aiBadgeText}>Список сформовано</Text>
                         </View>
                     )}
 
                     {/* Total (Receipt) */}
                     <AnimatedItem index={0}>
                         <View style={s.receiptCard}>
-                            <Text style={s.receiptTitle}>ФІСКАЛЬНИЙ ЧЕК</Text>
+                            <Text style={s.receiptTitle}>КОШИК ПОКУПОК</Text>
                             <View style={s.dashedLine} />
                             <Text style={s.totalLabel}>Разом до сплати:</Text>
                             <Text style={s.totalValue}>{basket.total_cost?.toFixed(2) || '0'} ₴</Text>
@@ -513,8 +517,7 @@ export default function SurvivalScreen({ navigation }) {
                                         style={s.swapBtn}
                                         onPress={() => handleSubstitute(item._originalIndex)}
                                     >
-                                        <Text style={{ fontSize: 14, color: COLORS.primary }}>⇄</Text>
-                                        <Text style={s.swapText}>Замінити</Text>
+                                        <Text style={s.swapText}>Знайти заміну</Text>
                                     </TouchableOpacity>
                                         </View>
                                     </AnimatedItem>
@@ -533,9 +536,9 @@ export default function SurvivalScreen({ navigation }) {
                                     style={s.storeLink}
                                     onPress={() => openMaps(store.lat, store.lon, store.name)}
                                 >
-                                    <Text style={{ fontSize: 16 }}>📍</Text>
+                                    <View style={s.storeDot} />
                                     <Text style={s.storeLinkText}>{store.name}</Text>
-                                    <Text style={{ fontSize: 12, color: COLORS.textMuted }}>↗</Text>
+                                    <Text style={{ fontSize: 12, color: COLORS.textMuted }}>›</Text>
                                 </TouchableOpacity>
                             ))}
                         </View>
@@ -544,7 +547,7 @@ export default function SurvivalScreen({ navigation }) {
                     {/* Tips */}
                     {basket.tips && basket.tips.length > 0 && (
                         <View style={s.tipsSection}>
-                            <Text style={s.tipsTitle}>AI Аналіз кошика</Text>
+                            <Text style={s.tipsTitle}>Аналіз кошика</Text>
                             {basket.tips.map((tip, idx) => (
                                 <Text key={idx} style={s.tipText}>{tip}</Text>
                             ))}
@@ -552,17 +555,25 @@ export default function SurvivalScreen({ navigation }) {
                     )}
 
                     <TouchableOpacity 
-                        style={[s.generateBtn, s.generateBtnSecondary, { marginBottom: SPACING.xl }]} 
+                        style={[s.generateBtn, s.generateBtnSecondary, { marginBottom: SPACING.md }]} 
                         onPress={handleAddToCart}
                         activeOpacity={0.8}
                     >
-                        <Text style={s.generateText}>🛒 Усі товари в кошик</Text>
+                        <Text style={s.generateText}>Додати всі товари до кошика</Text>
                     </TouchableOpacity>
+
+                    {/* AI Disclaimer */}
+                    <View style={s.disclaimerSection}>
+                        <Text style={s.disclaimerText}>
+                            Цей список складено за допомогою штучного інтелекту та має рекомендаційний характер. 
+                            AI не є професійним дієтологом — за потреби проконсультуйтеся з фахівцем. 
+                            Відповідальність за вибір продуктів та їх кількість несе користувач.
+                        </Text>
+                    </View>
                 </>
             ) : (
                 <View style={s.emptyContainer}>
-                    <Text style={{ fontSize: 48 }}>🛒</Text>
-                    <Text style={s.emptyText}>Встановіть бюджет та кількість днів</Text>
+                    <Text style={s.emptyText}>Встановіть бюджет та кількість днів, після чого натисніть «Сформувати кошик»</Text>
                 </View>
             )}
             <View style={{ height: 40 }} />
@@ -584,7 +595,7 @@ const s = StyleSheet.create({
     container: Platform.OS === 'web' ? { height: '100vh', backgroundColor: COLORS.bgPrimary, overflow: 'hidden' } : { flex: 1, backgroundColor: COLORS.bgPrimary },
     header: { padding: SPACING.lg, alignItems: 'center', backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.border },
     headerTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: SPACING.sm },
-    headerEmoji: { fontSize: 30 },
+    headerAccentBar: { width: 32, height: 4, borderRadius: 2, backgroundColor: COLORS.primary },
     userStats: { flexDirection: 'row', alignItems: 'center' },
     ticketBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.bgSecondary, paddingHorizontal: 12, paddingVertical: 6, borderRadius: RADIUS.full, borderWidth: 1, borderColor: COLORS.border },
     ticketText: { ...FONTS.bold, color: COLORS.textPrimary, fontSize: 14 },
@@ -612,6 +623,23 @@ const s = StyleSheet.create({
     generateBtn: { marginHorizontal: SPACING.lg, marginTop: SPACING.md, borderRadius: RADIUS.full, backgroundColor: COLORS.primary, paddingVertical: SPACING.md, alignItems: 'center', justifyContent: 'center' },
     generateBtnSecondary: { backgroundColor: COLORS.surface },
     generateText: { ...FONTS.bold, color: '#fff', fontSize: 16 },
+
+    disclaimerSection: {
+        marginHorizontal: SPACING.lg,
+        marginBottom: SPACING.xl,
+        padding: SPACING.md,
+        backgroundColor: COLORS.surface,
+        borderRadius: RADIUS.md,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    disclaimerText: {
+        ...FONTS.regular,
+        fontSize: 11,
+        color: COLORS.textMuted,
+        lineHeight: 16,
+        textAlign: 'center',
+    },
 
     aiBadge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: SPACING.md, paddingVertical: 6 },
     aiBadgeText: { ...FONTS.caption, color: COLORS.accent, fontSize: 12 },
@@ -664,6 +692,7 @@ const s = StyleSheet.create({
     storesSectionTitle: { ...FONTS.bold, marginBottom: SPACING.sm },
     storeLink: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, padding: SPACING.md, backgroundColor: COLORS.white, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.xs },
     storeLinkText: { ...FONTS.medium, color: COLORS.primary, flex: 1 },
+    storeDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.primary },
 
     errorContainer: { alignItems: 'center', padding: SPACING.xxl },
     errorText: { ...FONTS.regular, color: COLORS.error, marginTop: SPACING.md, textAlign: 'center' },
@@ -687,7 +716,7 @@ const s = StyleSheet.create({
     modalLoadingText: { ...FONTS.caption, color: COLORS.textMuted, fontSize: 13 },
 
     subCard: { flexDirection: 'row', alignItems: 'center', padding: SPACING.md, backgroundColor: COLORS.white, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.sm },
-    subIcon: { width: 32, height: 32, borderRadius: RADIUS.sm, backgroundColor: COLORS.bgSecondary, justifyContent: 'center', alignItems: 'center', marginRight: SPACING.md },
+    subIconDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: COLORS.primary, marginRight: SPACING.md },
     subName: { ...FONTS.medium, fontSize: 14 },
     subChain: { ...FONTS.caption, marginTop: 2 },
     subReason: { ...FONTS.caption, color: COLORS.accent, marginTop: 3, fontSize: 11 },

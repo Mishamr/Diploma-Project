@@ -2,10 +2,8 @@
 Main API views — products, shopping lists, promotions, survival.
 """
 
-import json
 import logging
 import os
-import urllib.request
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -86,6 +84,59 @@ class ProductViewSet(viewsets.ReadOnlyModelViewSet):
             qs = qs.filter(store_items__store__chain__slug=chain_slug).distinct()
 
         return qs
+
+    @action(detail=True, methods=["get"], url_path="alternatives")
+    def alternatives(self, request, pk=None):
+        """
+        GET /api/v1/products/{id}/alternatives/
+        Returns products with the same normalized_name (same product type,
+        different chain/store), optionally cheaper than max_price.
+        This gives true semantic equivalents: milk → milk (not milk sticks).
+        """
+        product = self.get_object()
+        normalized = product.normalized_name
+
+        max_price = request.query_params.get("max_price")
+
+        qs = Product.objects.none()
+        if normalized:
+            # Find products with exactly the same normalized_name, excluding self
+            qs = (
+                Product.objects.filter(normalized_name=normalized)
+                .exclude(id=product.id)
+                .select_related("category")
+            )
+
+        # Fallback to category if no exact semantic match found
+        if not qs.exists() and product.category_id:
+            qs = (
+                Product.objects.filter(category_id=product.category_id)
+                .exclude(id=product.id)
+                .select_related("category")
+            )
+
+        # Filter to only products that have a price (are sold somewhere)
+        qs = qs.filter(store_items__isnull=False).distinct()
+
+        serializer = ProductSerializer(qs, many=True, context={"request": request})
+        results = serializer.data
+
+        # Optionally filter by max price on Python side (latest_price may be None)
+        if max_price:
+            try:
+                max_p = float(max_price)
+                results = [
+                    r
+                    for r in results
+                    if r.get("latest_price") and float(r["latest_price"]) < max_p
+                ]
+            except (ValueError, TypeError):
+                pass
+
+        # Sort by price ascending
+        results = sorted(results, key=lambda r: float(r.get("latest_price") or 9999))
+
+        return Response(results)
 
 
 class CategoryViewSet(viewsets.ReadOnlyModelViewSet):
@@ -173,7 +224,7 @@ class ShoppingListViewSet(viewsets.ModelViewSet):
         shopping_list = self.get_object()
         lat = request.query_params.get("lat")
         lon = request.query_params.get("lon")
-        radius_km = float(request.query_params.get("radius", 5.0))
+        radius_km = float(request.query_params.get("radius", 2.0))
 
         import math
 
@@ -281,18 +332,19 @@ def promotions_view(request):
 @permission_classes([IsAuthenticated])
 def survival_basket_view(request):
     """GET /api/v1/survival/ — budget survival basket."""
-    # profile = request.user.profile
-    # if not profile.is_pro:
-    #     if profile.tickets < 1:
-    #         return Response(
-    #             {"error": "Недостатньо тікетів"},
-    #             status=status.HTTP_402_PAYMENT_REQUIRED,
-    #         )
-    #     profile.tickets -= 1
-    #     profile.save(update_fields=["tickets"])
+    profile = request.user.profile
+    if not profile.is_pro:
+        if profile.tickets < 1:
+            return Response(
+                {"error": "Недостатньо тікетів"},
+                status=402,
+            )
+        profile.tickets -= 1
+        profile.save(update_fields=["tickets"])
 
     budget = float(request.query_params.get("budget", 5000))
     days = int(request.query_params.get("days", 7))
+    meals_per_day = int(request.query_params.get("meals_per_day", 3))
     lat = request.query_params.get("lat")
     lon = request.query_params.get("lon")
     chain = request.query_params.get("chain")
@@ -303,6 +355,7 @@ def survival_basket_view(request):
         lat=float(lat) if lat else None,
         lon=float(lon) if lon else None,
         chain=chain,
+        meals_per_day=meals_per_day,
     )
     return Response(basket)
 
@@ -396,7 +449,7 @@ def compare_cart_view(request):
     items_data = request.data.get("items", [])
     lat = request.data.get("lat")
     lon = request.data.get("lon")
-    radius_km = float(request.data.get("radius", 5.0))
+    radius_km = float(request.data.get("radius", 2.0))
 
     if not isinstance(items_data, list):
         return Response(
@@ -457,8 +510,14 @@ def compare_cart_view(request):
             if items_found > 0:
                 results_data.append(
                     {
-                        "chain": f"{store.chain.name} ({round(store.distance, 1)} км)",
+                        "chain": store.chain.name,
                         "chain_slug": store.chain.slug,
+                        "store_address": store.address,
+                        "distance_km": (
+                            round(store.distance, 2)
+                            if getattr(store, "distance", None) is not None
+                            else None
+                        ),
                         "total_price": store_total,
                         "items_found": items_found,
                         "missing": missing,
@@ -594,29 +653,44 @@ def ai_chat_view(request):
     # Fetch smart context from DB
     db_context = get_ai_context(message, request.user)
 
-    system_prompt = f"""Ти — професійний та емпатичний фінансовий і дієтологічний консультант додатку Fiscus.
-Твоє головне завдання: допомагати користувачеві приймати найкращі рішення щодо покупок, економії грошей та збалансованого харчування.
-Ти ідеально орієнтуєшся в цінах мереж (АТБ, Сільпо, Ашан), знаєш усі акції та вмієш знаходити приховані можливості для заощаджень.
+    system_prompt = f"""Ти — досвідчений фінансовий та дієтологічний консультант додатку Fiscus.
+Твоє завдання: допомагати користувачеві приймати виважені рішення щодо покупок, економії та харчування.
 
-ПРАВИЛА ТВОЄЇ РОБОТИ:
-1. Завжди звертайся до користувача з повагою, теплотою і як справжній експерт. Якщо є ім'я у профілі — використовуй його.
-2. СУВОРО враховуй усі медичні та дієтичні обмеження (алергії, непереносимість): НІКОЛИ не рекомендуй те, що може зашкодити користувачу!
-3. Завжди підкріплюй свої поради конкретними товарами з бази. Не кажи абстрактне "купіть макарони", а кажи "Ось макарони від ТМ Pasta у Сільпо за 34.00 ₴".
-4. Якщо запит стосується здоров'я, спочатку перевіряй наявність дієти у налаштуваннях. Якщо її немає — делікатно порадь заповнити особистий профіль.
-5. Розписуй свої відповіді структуровано: використовуй списки, короткі абзаци та виділяй головні цифри.
-6. Будь проактивним: окрім відповіді на питання, порадь 1-2 додаткові хитрощі для заощадження!
+ПРАВИЛА РОБОТИ:
+1. Відповідай стисло, по суті, без зайвої пишномовності. Звертайся на "ви" або на ім'я (якщо є у профілі).
+2. СУВОРО враховуй медичні та дієтичні обмеження (алергії, непереносимість): ніколи не рекомендуй заборонені продукти.
+3. Підкріплюй поради конкретними товарами з бази даних.
+4. Не використовуй markdown-форматування (зірочки, решітки, жирний шрифт) — відповідай звичайним текстом.
+5. Без зайвих похвал і кліше ("чудово!", "звісно!"). Говори по-діловому, але доброзичливо.
 
-{'[PRO РЕЖИМ АКТИВНИЙ: Ти повинен надати максимально глибокий та всебічний фінансовий аналіз.]' if profile.is_pro else ''}
+ПРАВИЛА ПРО ТЕРМІНИ ПРИДАТНОСТІ І ЧАСТОТУ ПОКУПОК:
+- Хліб, батони: зберігаються 2-3 дні -> рекомендуй купувати кожні 2-3 дні, а не великими запасами
+- Молоко, кефір, сметана: термін зберігання 5-7 днів -> купувати раз на тиждень
+- Свіже м'ясо та курятина (охолоджені): 2-3 дні в холодильнику -> купувати 2 рази на тиждень або відразу заморожувати
+- Риба свіжа: 1-2 дні -> купувати безпосередньо перед вживанням
+- Яйця: зберігаються 3-4 тижні -> купувати раз на 2 тижні
+- Сир твердий: 2-4 тижні -> раз на 2 тижні
+- Сир м'який (рикота, моцарела, кисломолочний): 3-5 днів -> раз на тиждень
+- Помідори, огірки, зелень: 3-5 днів -> 2 рази на тиждень
+- Картопля, морква, цибуля, буряк: 2-4 тижні -> раз на 2 тижні
+- Фрукти (яблука, груші): 1-2 тижні -> раз на тиждень
+- Крупи, макарони, борошно, цукор, олія: 6-12 місяців -> купувати одразу на весь потрібний період
+- Консерви: 1-3 роки -> купувати про запас
+Коли радиш кількість продукту, ОБОВ'ЯЗКОВО враховуй ці терміни. Не рекомендуй нереальні обсяги (наприклад, 30 хлібин на місяць).
 
-ДАНІ ПРОФІЛЮ ТА ТОП ТОВАРИ (БАЗА ДАНИХ):
+{'[PRO: надати максимально детальний фінансовий аналіз.]' if profile.is_pro else ''}
+
+ДАНІ ПРОФІЛЮ ТА ТОВАРИ (БАЗА ДАНИХ):
 {db_context}
 
-ПОТОЧНИЙ КОНТЕКСТ КОРИСТУВАЧА (ЕКРАН/КОШИК):
+КОНТЕКСТ КОРИСТУВАЧА (ЕКРАН/КОШИК):
 {context_extra}"""
 
     try:
         logger.info(f"AI Chat Request: {message[:100]}...")
-        reply = call_ai_provider(system_prompt + "\n\nUser: " + message, max_tokens=512, temperature=0.4)
+        reply = call_ai_provider(
+            system_prompt + "\n\nUser: " + message, max_tokens=512, temperature=0.4
+        )
         if reply and not str(reply).startswith("Error:"):
             logger.info("AI Chat Response Success")
             return Response({"reply": reply})
