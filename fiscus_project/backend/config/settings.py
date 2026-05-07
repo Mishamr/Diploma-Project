@@ -32,6 +32,7 @@ INSTALLED_APPS = [
     "apps.api",
     "apps.geo",
     "apps.scraper",
+    "django_apscheduler",
 ]
 
 MIDDLEWARE = [

@@ -27,3 +27,4 @@ bandit>=1.7
 
 gunicorn>=21.2
 dj-database-url>=2.1.0
+django-apscheduler>=0.6.2
