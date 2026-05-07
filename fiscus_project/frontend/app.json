@@ -29,6 +29,18 @@
     "plugins": [
       "expo-font",
       "expo-web-browser"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "64f8bb24-d6b5-4b34-b1cf-663e304a27bb"
+      }
+    },
+    "owner": "fiscus",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/64f8bb24-d6b5-4b34-b1cf-663e304a27bb"
+    }
   }
 }
