@@ -26,7 +26,6 @@ def _log(msg: str):
         _LOG_BUFFER.append(line)
         if len(_LOG_BUFFER) > 500:
             _LOG_BUFFER.pop(0)
-    print(line, flush=True)
 
 
 @api_view(["GET"])

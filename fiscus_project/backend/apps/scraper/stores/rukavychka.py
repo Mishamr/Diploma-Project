@@ -66,7 +66,7 @@ class RukavychkaScraper:
 
     def scrape(self):
         async_to_sync(self._run)()
-        print(f"[{self.CHAIN_NAME}] Parsing complete.")
+        logger.info(f"[{self.CHAIN_NAME}] Parsing complete.")
 
     async def _run(self):
         client = UniversalScraperClient(
@@ -82,16 +82,13 @@ class RukavychkaScraper:
         is_scraped_async = sync_to_async(is_category_scraped)
         ingest_async = sync_to_async(ingest_scraped_data)
 
-        print(f"[{self.CHAIN_NAME}] Starting scraper...", flush=True)
+        logger.info(f"[{self.CHAIN_NAME}] Starting scraper...")
 
         # First, try to discover real category IDs from the API
         real_categories = await self._discover_categories(client)
         categories_to_use = real_categories if real_categories else FOOD_CATEGORIES
 
-        print(
-            f"[{self.CHAIN_NAME}] Categories found: {len(categories_to_use)}",
-            flush=True,
-        )
+        logger.info(f"[{self.CHAIN_NAME}] Categories found: {len(categories_to_use)}")
 
         tasks = [
             self._scrape_category(
@@ -146,13 +143,12 @@ class RukavychkaScraper:
         self, client, semaphore, cat_id, cat_name, ingest_async, is_scraped_async
     ):
         if await is_scraped_async(self.CHAIN_SLUG, 0, cat_name, 12):
-            print(
-                f"[{self.CHAIN_NAME}] SKIP: '{cat_name}' (already scraped recently)",
-                flush=True,
+            logger.info(
+                f"[{self.CHAIN_NAME}] SKIP: '{cat_name}' (already scraped recently)"
             )
             return
 
-        print(f"[{self.CHAIN_NAME}] START: '{cat_name}' (id={cat_id})", flush=True)
+        logger.info(f"[{self.CHAIN_NAME}] START: '{cat_name}' (id={cat_id})")
         async with semaphore:
             products = []
             page = 1
@@ -173,13 +169,12 @@ class RukavychkaScraper:
                 if p["external_store_id"] not in seen
                 and not seen.add(p["external_store_id"])
             ]
-            print(
-                f"[{self.CHAIN_NAME}] SAVE: {len(unique)} items for '{cat_name}'",
-                flush=True,
+            logger.info(
+                f"[{self.CHAIN_NAME}] SAVE: {len(unique)} items for '{cat_name}'"
             )
             await ingest_async(unique, self.CHAIN_SLUG, 0)
         else:
-            print(f"[{self.CHAIN_NAME}] No products for '{cat_name}'", flush=True)
+            logger.info(f"[{self.CHAIN_NAME}] No products for '{cat_name}'")
 
     async def _fetch_page(self, client, cat_id, cat_name, page):
         """Try multiple API endpoint patterns for Rukavychka."""

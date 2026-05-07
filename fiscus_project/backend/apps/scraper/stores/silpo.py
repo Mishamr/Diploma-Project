@@ -103,7 +103,7 @@ class SilpoScraper:
             shop_id_int = 1
 
         async_to_sync(self._run)(shop_id_int)
-        print(f"[{self.CHAIN_NAME}] ✓ Парсинг завершено!")
+        logger.info(f"[{self.CHAIN_NAME}] ✓ Parsing complete.")
 
     async def _run(self, shop_id_int: int):
         semaphore = asyncio.Semaphore(MAX_CONCURRENT_CATEGORIES)
@@ -115,12 +115,12 @@ class SilpoScraper:
             max_retries=3,
         )
 
-        print(f"[{self.CHAIN_NAME}] Отримання динамічних категорій...", flush=True)
+        logger.info(f"[{self.CHAIN_NAME}] Отримання динамічних категорій...")
         categories_url = BASE_URL + f"/v1/uk/branches/{self.branch_id}/categories"
         cat_resp = await client.fetch(categories_url, headers=API_HEADERS)
 
         if not cat_resp or cat_resp.status_code != 200:
-            print(f"[{self.CHAIN_NAME}] [!] Не вдалося отримати категорії.")
+            logger.warning(f"[{self.CHAIN_NAME}] [!] Не вдалося отримати категорії.")
             return
 
         cat_data = cat_resp.json()
@@ -159,13 +159,11 @@ class SilpoScraper:
                 continue
             self.dynamic_categories.append({"slug": slug, "title": item.get("title")})
 
-        print(
-            f"[{self.CHAIN_NAME}] Початок збору даних (async). Магазин ID: {self.shop_id}",
-            flush=True,
+        logger.info(
+            f"[{self.CHAIN_NAME}] Початок збору даних (async). Магазин ID: {self.shop_id}"
         )
-        print(
-            f"[{self.CHAIN_NAME}] Знайдено кореневих категорій: {len(self.dynamic_categories)} | Паралельно: {MAX_CONCURRENT_CATEGORIES}",
-            flush=True,
+        logger.info(
+            f"[{self.CHAIN_NAME}] Знайдено кореневих категорій: {len(self.dynamic_categories)} | Паралельно: {MAX_CONCURRENT_CATEGORIES}"
         )
 
         from apps.scraper.services import is_category_scraped
@@ -201,15 +199,13 @@ class SilpoScraper:
         if await is_scraped_async(
             self.CHAIN_SLUG, shop_id_int, category_name, hours=12
         ):
-            print(
-                f"[{self.CHAIN_NAME}] ПРОПУСК: категорія '{category_name}' (вже оновлена нещодавно).",
-                flush=True,
+            logger.info(
+                f"[{self.CHAIN_NAME}] ПРОПУСК: категорія '{category_name}' (вже оновлена нещодавно)."
             )
             return
 
-        print(
-            f"[{self.CHAIN_NAME}] СТАРТ: Збираємо категорію '{category_name}'...",
-            flush=True,
+        logger.info(
+            f"[{self.CHAIN_NAME}] СТАРТ: Збираємо категорію '{category_name}'..."
         )
         products = await self._scrape_category(client, semaphore, slug, category_name)
 
@@ -223,9 +219,8 @@ class SilpoScraper:
                     seen.add(key)
                     unique.append(p)
 
-            print(
-                f"[{self.CHAIN_NAME}] ЗБЕРЕЖЕННЯ: {len(unique)} товарів для категорії '{category_name}'...",
-                flush=True,
+            logger.info(
+                f"[{self.CHAIN_NAME}] ЗБЕРЕЖЕННЯ: {len(unique)} товарів для категорії '{category_name}'..."
             )
             await ingest_async(unique, self.CHAIN_SLUG, shop_id_int)
 

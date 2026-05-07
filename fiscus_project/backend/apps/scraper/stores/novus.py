@@ -81,7 +81,7 @@ class NovusScraper:
 
     def scrape(self):
         async_to_sync(self._run)()
-        print(f"[{self.CHAIN_NAME}] Parsing complete.")
+        logger.info(f"[{self.CHAIN_NAME}] Parsing complete.")
 
     async def _run(self):
         client = UniversalScraperClient(
@@ -103,11 +103,8 @@ class NovusScraper:
 
         is_scraped_async = sync_to_async(is_category_scraped)
 
-        print(
-            f"[{self.CHAIN_NAME}] Starting. Store API ID: {self.store_api_id}",
-            flush=True,
-        )
-        print(f"[{self.CHAIN_NAME}] Categories: {len(FOOD_CATEGORIES)}", flush=True)
+        logger.info(f"[{self.CHAIN_NAME}] Starting. Store API ID: {self.store_api_id}")
+        logger.info(f"[{self.CHAIN_NAME}] Categories: {len(FOOD_CATEGORIES)}")
 
         tasks = [
             self._scrape_category(
@@ -121,13 +118,12 @@ class NovusScraper:
         self, client, semaphore, cat_slug, cat_name, ingest_async, is_scraped_async
     ):
         if await is_scraped_async(self.CHAIN_SLUG, 0, cat_name, 12):
-            print(
-                f"[{self.CHAIN_NAME}] SKIP: '{cat_name}' (already scraped recently)",
-                flush=True,
+            logger.info(
+                f"[{self.CHAIN_NAME}] SKIP: '{cat_name}' (already scraped recently)"
             )
             return
 
-        print(f"[{self.CHAIN_NAME}] START: '{cat_name}'", flush=True)
+        logger.info(f"[{self.CHAIN_NAME}] START: '{cat_name}'")
         async with semaphore:
             products = []
             page = 1
@@ -148,9 +144,8 @@ class NovusScraper:
                 if p["external_store_id"] not in seen
                 and not seen.add(p["external_store_id"])
             ]
-            print(
-                f"[{self.CHAIN_NAME}] SAVE: {len(unique)} items for '{cat_name}'",
-                flush=True,
+            logger.info(
+                f"[{self.CHAIN_NAME}] SAVE: {len(unique)} items for '{cat_name}'"
             )
             await ingest_async(unique, self.CHAIN_SLUG, 0)
 

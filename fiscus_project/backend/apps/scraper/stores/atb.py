@@ -158,7 +158,7 @@ class ATBScraper:
             shop_id_int = 1
 
         async_to_sync(self._run)(shop_id_int)
-        print(f"[{self.CHAIN_NAME}] ✓ Парсинг завершено!")
+        logger.info(f"[{self.CHAIN_NAME}] ✓ Parsing complete.")
 
     async def _run(self, shop_id_int: int):
         semaphore = asyncio.Semaphore(MAX_CONCURRENT_CATEGORIES)
@@ -170,13 +170,11 @@ class ATBScraper:
             max_retries=3,
         )
 
-        print(
-            f"[{self.CHAIN_NAME}] Початок збору даних (async). Магазин ID: {self.shop_id}",
-            flush=True,
+        logger.info(
+            f"[{self.CHAIN_NAME}] Початок збору даних (async). Магазин ID: {self.shop_id}"
         )
-        print(
-            f"[{self.CHAIN_NAME}] Категорій: {len(self.CATALOG_CATEGORIES)} | Паралельно: {MAX_CONCURRENT_CATEGORIES}",
-            flush=True,
+        logger.info(
+            f"[{self.CHAIN_NAME}] Категорій: {len(self.CATALOG_CATEGORIES)} | Паралельно: {MAX_CONCURRENT_CATEGORIES}"
         )
 
         from apps.scraper.services import is_category_scraped
@@ -207,15 +205,13 @@ class ATBScraper:
         if await is_scraped_async(
             self.CHAIN_SLUG, shop_id_int, category_name, hours=12
         ):
-            print(
-                f"[{self.CHAIN_NAME}] ПРОПУСК: категорія '{category_name}' (вже оновлена нещодавно).",
-                flush=True,
+            logger.info(
+                f"[{self.CHAIN_NAME}] ПРОПУСК: категорія '{category_name}' (вже оновлена нещодавно)."
             )
             return
 
-        print(
-            f"[{self.CHAIN_NAME}] СТАРТ: Збираємо категорію '{category_name}'...",
-            flush=True,
+        logger.info(
+            f"[{self.CHAIN_NAME}] СТАРТ: Збираємо категорію '{category_name}'..."
         )
         products = await self._scrape_category(client, semaphore, category_path)
 
@@ -228,9 +224,8 @@ class ATBScraper:
                     seen.add(key)
                     unique.append(p)
 
-            print(
-                f"[{self.CHAIN_NAME}] ЗБЕРЕЖЕННЯ: {len(unique)} товарів для категорії '{category_name}'...",
-                flush=True,
+            logger.info(
+                f"[{self.CHAIN_NAME}] ЗБЕРЕЖЕННЯ: {len(unique)} товарів для категорії '{category_name}'..."
             )
             await ingest_async(unique, self.CHAIN_SLUG, shop_id_int)
 

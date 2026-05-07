@@ -25,9 +25,7 @@ _category_cache = {}
 def is_category_scraped(
     chain_slug: str, store_id: int, category_name: str, hours: int = 12
 ) -> bool:
-    """Check if a category was scraped recently for a given chain.
-    NOTE: store_id from the scraper is NOT the DB store PK — use chain_slug only.
-    """
+    """Check if a category was scraped recently for a given chain."""
     if not category_name:
         return False
 
@@ -73,43 +71,34 @@ def ingest_scraped_data(scraped_items: list[dict], chain_slug: str, store_id: in
         store = Store.objects.select_related("chain").get(id=store_id)
         # Ensure we are saving to a store of the correct chain
         if store.chain.slug != chain_slug:
-            print(
-                f"[Ingest] Store ID {store_id} belongs to '{store.chain.slug}', but we are scraping '{chain_slug}'. Finding appropriate store...",
-                flush=True,
+            logger.warning(
+                f"[Ingest] Store ID {store_id} belongs to '{store.chain.slug}', but we are scraping '{chain_slug}'. Finding appropriate store..."
             )
             store = Store.objects.filter(chain__slug=chain_slug, is_active=True).first()
             if not store:
-                print(
-                    f"[Ingest] ERROR: No active store found for chain '{chain_slug}'.",
-                    flush=True,
+                logger.error(
+                    f"[Ingest] ERROR: No active store found for chain '{chain_slug}'."
                 )
                 return {"saved": 0, "errors": len(scraped_items)}
-            print(
-                f"[Ingest] Redirected to Store ID {store.id} ({store.name})", flush=True
-            )
+            logger.info(f"[Ingest] Redirected to Store ID {store.id} ({store.name})")
     except Store.DoesNotExist:
-        print(
-            f"[Ingest] Store ID {store_id} not found. Finding first available store for '{chain_slug}'...",
-            flush=True,
+        logger.warning(
+            f"[Ingest] Store ID {store_id} not found. Finding first available store for '{chain_slug}'..."
         )
         store = Store.objects.filter(chain__slug=chain_slug, is_active=True).first()
         if not store:
-            print(
-                f"[Ingest] ERROR: No store found for chain '{chain_slug}'.", flush=True
-            )
+            logger.error(f"[Ingest] ERROR: No store found for chain '{chain_slug}'.")
             return {"saved": 0, "errors": len(scraped_items)}
     saved_count = 0
     error_count = 0
 
-    print(
-        f"[Ingest] Starting ingestion for {chain_slug}... Total items: {len(scraped_items)}",
-        flush=True,
+    logger.info(
+        f"[Ingest] Starting ingestion for {chain_slug}... Total items: {len(scraped_items)}"
     )
     for i, raw_item in enumerate(scraped_items):
         if i > 0 and i % 100 == 0:
-            print(
-                f"  [Ingest] {chain_slug}: Processed {i}/{len(scraped_items)} items...",
-                flush=True,
+            logger.info(
+                f"  [Ingest] {chain_slug}: Processed {i}/{len(scraped_items)} items..."
             )
 
         try:
@@ -131,9 +120,7 @@ def ingest_scraped_data(scraped_items: list[dict], chain_slug: str, store_id: in
             # Update product image and category if changed
             product_updated = False
             if item.image_url and product.image_url != item.image_url:
-                print(
-                    f"  [Ingest] Updated photo for '{product.name[:30]}...'", flush=True
-                )
+                logger.debug(f"  [Ingest] Updated photo for '{product.name[:30]}...'")
                 product.image_url = item.image_url
                 product_updated = True
 

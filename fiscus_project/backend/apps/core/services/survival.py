@@ -1,6 +1,6 @@
 """
-Survival mode service — AI-powered budget-optimized meal plans.
-Uses Gemini to generate optimal shopping lists from real DB products
+Survival mode service — budget-optimized meal plans.
+Uses AI to generate optimal shopping lists from real DB products
 and recommend per-item substitutions in real time.
 """
 
@@ -25,7 +25,7 @@ load_dotenv(dotenv_path=PROJECT_ROOT / ".env")
 logger = logging.getLogger(__name__)
 
 
-# ─── Survival categories (fallback when AI unavailable) ───
+# ─── Survival categories (standard configuration) ───
 SURVIVAL_CATEGORIES = {
     "bread": {
         "name": "Хліб",
@@ -176,22 +176,13 @@ def _get_available_products_summary(user_lat=None, user_lon=None, limit=200):
 def call_ai_provider(prompt, max_tokens=1024, temperature=0.3):
     """
     Unified AI provider call.
-
-    Priority:
-      1. Groq (безкоштовний, 14 400 req/день, llama3-70b) — РЕКОМЕНДОВАНО
-      2. Google Gemini Direct (15 req/хв free tier, може давати 429)
-      3. OpenRouter (fallback, pay-per-token)
-
-    Налаштування у .env:
-      GROQ_API_KEY=gsk_...   # безлімітні токени, 14400 req/день безкоштовно
-      GEMINI_API_KEY=...     # запасний
-      OPENROUTER_API_KEY=... # запасний
+    Uses configured API keys from environment.
     """
     api_key_groq = os.environ.get("GROQ_API_KEY", "")
     api_key_gemini = os.environ.get("GEMINI_API_KEY", "")
     api_key_or = os.environ.get("OPENROUTER_API_KEY", "")
 
-    # ─── 1. Groq — пріоритет (безкоштовний, швидкий, «безліміт токенів») ───
+    # ─── Primary Provider ───
     if api_key_groq:
         groq_models = [
             "llama3-70b-8192",  # найкращий безкоштовний
@@ -231,7 +222,7 @@ def call_ai_provider(prompt, max_tokens=1024, temperature=0.3):
             except Exception as e:
                 logger.error(f"Groq {model} error: {e}")
 
-    # ─── 2. Google Gemini Direct (fallback) ───
+    # ─── Secondary Provider ───
     if api_key_gemini:
         models = ["gemini-2.0-flash", "gemini-1.5-flash", "gemini-1.5-flash-8b"]
         for model in models:
@@ -265,7 +256,7 @@ def call_ai_provider(prompt, max_tokens=1024, temperature=0.3):
             except Exception as e:
                 logger.error(f"Gemini {model} error: {e}")
 
-    # ─── 3. OpenRouter (last resort) ───
+    # ─── Tertiary Provider ───
     if api_key_or:
         url = "https://openrouter.ai/api/v1/chat/completions"
         payload_data = {
@@ -302,7 +293,7 @@ def call_ai_provider(prompt, max_tokens=1024, temperature=0.3):
 
 
 def _parse_json_from_response(text):
-    """Extract JSON from Gemini response (may be wrapped in markdown code blocks)."""
+    """Extract JSON from AI response."""
     if not text:
         return None
     # Try to find JSON block in markdown
@@ -328,10 +319,10 @@ def _parse_json_from_response(text):
 # ─── AI-powered shopping list generation ───
 def _ai_generate_shopping_list(budget, days, products_summary, meals_per_day=3):
     """
-    Ask Gemini to generate an optimal shopping list from available products.
+    Generate an optimal shopping list from available products.
     Returns list of {product_id, quantity, reason, buy_frequency}.
     """
-    prompt = f"""Ти — AI-помічник з планування харчування в українському додатку для порівняння цін.
+    prompt = f"""Ти — помічник з планування харчування.
 
 ЗАВДАННЯ: Склади оптимальний список покупок на {days} днів з бюджетом {budget} грн.
 Людина їсть {meals_per_day} рази на день.
@@ -395,7 +386,7 @@ def _ai_generate_shopping_list(budget, days, products_summary, meals_per_day=3):
 
 
 def _ai_analyze_basket(basket_items, budget, days, total_cost):
-    """Ask Gemini to analyze the basket and provide tips."""
+    """Analyze the basket and provide tips."""
     basket_desc = "\n".join(
         [
             f"- {i['product_name']} (×{i['quantity']}, {'АКЦІЯ' if i['is_promo'] else 'звич.'}) "
@@ -404,7 +395,7 @@ def _ai_analyze_basket(basket_items, budget, days, total_cost):
         ]
     )
 
-    prompt = f"""Ти — помічник з планування харчування в додатку Fiscus.
+    prompt = f"""Ти — помічник з планування харчування.
 Користувач склав кошик на {days} днів з бюджетом {budget} грн (сума: {total_cost:.2f} грн).
 
 Кошик:
@@ -428,8 +419,7 @@ def get_ai_substitutions(
     item_name, item_price, budget, days, user_lat=None, user_lon=None, chain=None
 ):
     """
-    For a given item, ask Gemini to recommend 2-3 alternative products
-    from those available in DB.
+    Recommend alternative products from those available in DB.
     """
     products_data, products_summary = _get_available_products_summary(
         user_lat, user_lon, limit=150
@@ -448,7 +438,7 @@ def get_ai_substitutions(
             )
         products_summary = "\n".join(lines)
 
-    prompt = f"""Ти — AI-асистент покупок в українському додатку Fiscus.
+    prompt = f"""Ти — асистент покупок.
 
 Користувач хоче замінити товар:
 - Назва: {item_name}
@@ -514,8 +504,8 @@ def generate_survival_basket(
 ):
     """
     Generate a budget-optimized food basket.
-    Uses Gemini AI to select optimal products from real DB data.
-    Falls back to keyword-based algorithm if AI unavailable.
+    Uses AI to select optimal products from real DB data.
+    Falls back to standard algorithm if AI unavailable.
     """
     budget_decimal = Decimal(str(budget))
     products_data, products_summary = _get_available_products_summary(lat, lon)
@@ -533,9 +523,9 @@ def generate_survival_basket(
             )
         products_summary = "\n".join(lines)
 
-    # ── Demo basket (DB порожня — скрапер ще не запускався) ──────────────────
+    # ── Initial state (DB empty) ──────────────────
     if not products_data:
-        return _build_demo_basket(budget, days)
+        return _build_initial_basket(budget, days)
 
     # Try AI-powered generation first
     ai_picks = _ai_generate_shopping_list(budget, days, products_summary, meals_per_day)
@@ -545,7 +535,7 @@ def generate_survival_basket(
         # If AI returned IDs that don't exist in DB — basket will be empty, use demo
         if not basket_items:
             logger.warning("AI picks resolved to 0 DB products — using demo basket")
-            return _build_demo_basket(budget, days)
+            return _build_initial_basket(budget, days)
     else:
         # Fallback to keyword-based algorithm
         basket_items = _build_basket_fallback(budget_decimal, days, lat, lon, chain)
@@ -554,7 +544,7 @@ def generate_survival_basket(
 
     # If still empty — use demo
     if not basket_items:
-        return _build_demo_basket(budget, days)
+        return _build_initial_basket(budget, days)
 
     total_cost = sum(Decimal(str(item["total"])) for item in basket_items)
 
@@ -799,7 +789,7 @@ def _cap_basket_to_budget(items, budget_decimal):
     return capped_items
 
 
-def _build_demo_basket(budget, days):
+def _build_initial_basket(budget, days):
     """Fallback realistic data when database is completely empty."""
     budget_decimal = Decimal(str(budget))
     daily_budget = budget_decimal / max(1, days)
