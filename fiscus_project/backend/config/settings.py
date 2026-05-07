@@ -5,6 +5,7 @@ Fiscus: Smart Price — Django settings.
 import os
 from pathlib import Path
 
+import dj_database_url
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -66,14 +67,10 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.postgresql",
-        "NAME": os.getenv("POSTGRES_DB", "fiscus"),
-        "USER": os.getenv("POSTGRES_USER", "fiscus"),
-        "PASSWORD": os.getenv("POSTGRES_PASSWORD", "fiscus_pass"),
-        "HOST": os.getenv("POSTGRES_HOST", "db"),
-        "PORT": os.getenv("POSTGRES_PORT", "5432"),
-    }
+    "default": dj_database_url.config(
+        default=f"postgresql://{os.getenv('POSTGRES_USER', 'fiscus')}:{os.getenv('POSTGRES_PASSWORD', 'fiscus_pass')}@{os.getenv('POSTGRES_HOST', 'db')}:{os.getenv('POSTGRES_PORT', '5432')}/{os.getenv('POSTGRES_DB', 'fiscus')}",
+        conn_max_age=600,
+    )
 }
 
 

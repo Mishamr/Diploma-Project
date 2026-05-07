@@ -26,3 +26,4 @@ pytest-django>=4.7
 bandit>=1.7
 
 gunicorn>=21.2
+dj-database-url>=2.1.0
