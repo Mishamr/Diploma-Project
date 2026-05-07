@@ -75,7 +75,7 @@ if db_url:
     
     print(f"DEBUG: Using DATABASE_URL (starts with {db_url[:15]}...)")
     DATABASES = {
-        "default": dj_database_url.parse(db_url, conn_max_age=600, conn_health_checks=True)
+        "default": dj_database_url.parse(db_url, conn_max_age=600, conn_health_checks=True, ssl_require=True)
     }
 else:
     print("CRITICAL: DATABASE_URL IS MISSING IN ENVIRONMENT!")
