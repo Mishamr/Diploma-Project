@@ -69,10 +69,16 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 DATABASES = {
     "default": dj_database_url.config(
-        default=f"postgresql://{os.getenv('POSTGRES_USER', 'fiscus')}:{os.getenv('POSTGRES_PASSWORD', 'fiscus_pass')}@{os.getenv('POSTGRES_HOST', 'db')}:{os.getenv('POSTGRES_PORT', '5432')}/{os.getenv('POSTGRES_DB', 'fiscus')}",
         conn_max_age=600,
+        conn_health_checks=True,
     )
 }
+
+# Fallback for individual variables if DATABASE_URL is missing
+if not os.getenv("DATABASE_URL"):
+    DATABASES["default"] = dj_database_url.parse(
+        f"postgresql://{os.getenv('POSTGRES_USER', 'fiscus')}:{os.getenv('POSTGRES_PASSWORD', 'fiscus_pass')}@{os.getenv('POSTGRES_HOST', 'db')}:{os.getenv('POSTGRES_PORT', '5432')}/{os.getenv('POSTGRES_DB', 'fiscus')}"
+    )
 
 
 AUTH_PASSWORD_VALIDATORS = [
