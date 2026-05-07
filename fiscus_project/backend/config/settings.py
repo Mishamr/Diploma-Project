@@ -69,21 +69,20 @@ WSGI_APPLICATION = "config.wsgi.application"
 
 db_url = os.getenv("DATABASE_URL")
 if db_url:
-    # Ensure postgresql schema
+    # Ensure postgresql schema for dj-database-url
     if db_url.startswith("postgres://"):
         db_url = db_url.replace("postgres://", "postgresql://", 1)
     
-    print(f"DEBUG: Using DATABASE_URL (starts with {db_url[:15]}...)")
     DATABASES = {
         "default": dj_database_url.parse(db_url, conn_max_age=600, conn_health_checks=True, ssl_require=True)
     }
 else:
-    print("CRITICAL: DATABASE_URL IS MISSING IN ENVIRONMENT!")
+    # Local development fallback
     DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": "fiscus",
-        }
+        "default": dj_database_url.config(
+            default=f"postgresql://{os.getenv('POSTGRES_USER', 'fiscus')}:{os.getenv('POSTGRES_PASSWORD', 'fiscus_pass')}@{os.getenv('POSTGRES_HOST', 'db')}:{os.getenv('POSTGRES_PORT', '5432')}/{os.getenv('POSTGRES_DB', 'fiscus')}",
+            conn_max_age=600,
+        )
     }
 
 
