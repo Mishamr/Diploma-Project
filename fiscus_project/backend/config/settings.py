@@ -67,18 +67,21 @@ TEMPLATES = [
 WSGI_APPLICATION = "config.wsgi.application"
 
 
-DATABASES = {
-    "default": dj_database_url.config(
-        conn_max_age=600,
-        conn_health_checks=True,
-    )
-}
-
-# Fallback for individual variables if DATABASE_URL is missing
-if not os.getenv("DATABASE_URL"):
-    DATABASES["default"] = dj_database_url.parse(
-        f"postgresql://{os.getenv('POSTGRES_USER', 'fiscus')}:{os.getenv('POSTGRES_PASSWORD', 'fiscus_pass')}@{os.getenv('POSTGRES_HOST', 'db')}:{os.getenv('POSTGRES_PORT', '5432')}/{os.getenv('POSTGRES_DB', 'fiscus')}"
-    )
+db_url = os.getenv("DATABASE_URL")
+if db_url:
+    print("DEBUG: DATABASE_URL is FOUND in environment.")
+    DATABASES = {
+        "default": dj_database_url.parse(db_url, conn_max_age=600, conn_health_checks=True)
+    }
+else:
+    print("DEBUG: DATABASE_URL is NOT FOUND. Falling back to individual variables.")
+    DATABASES = {
+        "default": dj_database_url.parse(
+            f"postgresql://{os.getenv('POSTGRES_USER', 'fiscus')}:{os.getenv('POSTGRES_PASSWORD', 'fiscus_pass')}@{os.getenv('POSTGRES_HOST', 'db')}:{os.getenv('POSTGRES_PORT', '5432')}/{os.getenv('POSTGRES_DB', 'fiscus')}",
+            conn_max_age=600,
+            conn_health_checks=True
+        )
+    }
 
 
 AUTH_PASSWORD_VALIDATORS = [
