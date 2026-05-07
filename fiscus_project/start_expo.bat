@@ -24,7 +24,8 @@ echo  [OK] IP = %LAN_IP%
 set REACT_NATIVE_PACKAGER_HOSTNAME=%LAN_IP%
 
 echo  [*] Updating .env...
-echo EXPO_PUBLIC_API_URL=http://%LAN_IP%:8000/api/v1> "%FRONTEND%\.env"
+echo EXPO_PUBLIC_API_URL=https://diploma-project-hpnm.onrender.com/api/v1> "%FRONTEND%\.env"
+rem echo EXPO_PUBLIC_API_URL=http://%LAN_IP%:8000/api/v1> "%FRONTEND%\.env"
 echo EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=834873653875-j72tdq1h10780c4cl3l84f6b09l1h40i.apps.googleusercontent.com>> "%FRONTEND%\.env"
 
 echo.
